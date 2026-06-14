@@ -78,6 +78,7 @@ CNC-FAN-4XN-006
 
 ---
 ## 🚀 ขั้นตอนการติดตั้งและทดสอบการใช้งาน
+
 ```text
 STEP 1: เตรียมฐานข้อมูล 
  └── [ALTER Table] ──> เพิ่มคอลัมน์เก็บพิกัดเป้าหมาย (LeftPct, TopPct) ในตารางหลัก
@@ -97,10 +98,11 @@ STEP 1: เตรียมฐานข้อมูล
                             แล้วก๊อปปี้ SQL Update Script กลับไปรันอัปเดตข้อมูลจริง
           │
           ▼
- STEP 5: แสดงผลหน้าบ้านตัวสมบูรณ์ 
+ STEP 5: แสดงผลหน้า Dashboard 
  └── [Dashboard View] ──> ดึงข้อมูลพิกัดล่าสุดมาพล็อตแผ่นป้ายพร้อมกรอบโปร่งใส
                            และดวงไฟย่อย 3 สี (แดง, เขียว, ดำ) แบบล็อกเอฟเฟกต์ Hover
 ```
+
 
 ### STEP 1: เตรียมฐานข้อมูล 
 * SQL Create DB
@@ -191,3 +193,22 @@ ADD
     [IsPlotted]    CHAR(1) NOT NULL DEFAULT 'N';
 GO
 ```
+### STEP 2: จัดการระบบรูปภาพ 
+วางไฟล์ชื่อฟอร์แมต "factory_floor_{Plant}.png"  
+
+<img width="430" height="233" alt="image" src="https://github.com/user-attachments/assets/41cf2f1d-ab05-4ade-9aa8-a4f9eb39ff90" />  
+<br/>  
+
+<img width="334" height="521" alt="image" src="https://github.com/user-attachments/assets/21f9035f-820d-4b03-bfd4-3ad4fb9b8d04" />  
+
+
+### STEP 3: อัปเดตโครงสร้าง Code
+* ปรับเปลี่ยน bgImgWidth(1889) และ bgImgHeight(689) ในหน้าจอ Dashboard.cshtml ให้ตรงพิกเซลรูปจริง
+  
+<img width="776" height="239" alt="image" src="https://github.com/user-attachments/assets/e99118e7-d6bc-4d2a-b514-2f94b46b7b9e" />
+
+### STEP 4: เพิ่มหรือแก้ไขตำแหน่งข้อมูลเครื่องจักร 
+<img width="1920" height="955" alt="image" src="https://github.com/user-attachments/assets/d9bb4e58-2656-4105-9008-c8f3ba1b0103" />
+
+### STEP 5: แสดงผลหน้า Dashboard 
+<img width="1920" height="955" alt="image" src="https://github.com/user-attachments/assets/2e272025-8161-41d1-a4a4-da3039b32ca5" />
