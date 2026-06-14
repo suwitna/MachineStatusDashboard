@@ -73,5 +73,33 @@ CNC-FAN-4XN-006
 ---
 
 ## Dashboard
-![Uploading image.png…]()
+แสดงข้อมูลตำแหน่งของเครื่องจักร สามารถเลือก Plant ที่ต้องการแสดงข้อมูลได้
+<img width="1919" height="954" alt="image" src="https://github.com/user-attachments/assets/b37c6177-fb8a-4b88-949c-460307fe487a" />
+
+---
+## 🚀 ขั้นตอนการติดตั้งและทดสอบการใช้งาน
+```text
+STEP 1: เตรียมฐานข้อมูล 
+ └── [ALTER Table] ──> เพิ่มคอลัมน์เก็บพิกัดเป้าหมาย (LeftPct, TopPct) ในตารางหลัก
+          │
+          ▼
+ STEP 2: จัดการระบบรูปภาพ 
+ └── [Save to wwwroot/images] ──> วางไฟล์ชื่อฟอร์แมต "factory_floor_{Plant}.png"
+          │
+          ▼
+ STEP 3: อัปเดตโครงสร้าง Code 
+ └── [Edit Variable] ──> ปรับเปลี่ยน bgImgWidth(1889) และ bgImgHeight(689) ในหน้าจอ 
+                         Dashboard.cshtml ให้ตรงพิกเซลรูปจริง
+          │
+          ▼
+ STEP 4: เพิ่มหรือแก้ไขตำแหน่งข้อมูลเครื่องจักร 
+ └── [Editor Workspace] ──> แอดมินกด "Load Resource" ดึงข้อมูลจาก DB มาปรับขยับพิกัด
+                            แล้วก๊อปปี้ SQL Update Script กลับไปรันอัปเดตข้อมูลจริง
+          │
+          ▼
+ STEP 5: แสดงผลหน้าบ้านตัวสมบูรณ์ 
+ └── [Dashboard View] ──> ดึงข้อมูลพิกัดล่าสุดมาพล็อตแผ่นป้ายพร้อมกรอบโปร่งใส
+                           และดวงไฟย่อย 3 สี (แดง, เขียว, ดำ) แบบล็อกเอฟเฟกต์ Hover
+```
+
 
