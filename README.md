@@ -99,8 +99,7 @@ STEP 1: เตรียมฐานข้อมูล
           │
           ▼
  STEP 5: แสดงผลหน้า Dashboard 
- └── [Dashboard View] ──> ดึงข้อมูลพิกัดล่าสุดมาพล็อตแผ่นป้ายพร้อมกรอบโปร่งใส
-                           และดวงไฟย่อย 3 สี (แดง, เขียว, ดำ) แบบล็อกเอฟเฟกต์ Hover
+ └── [Dashboard View] ──> ดึงข้อมูลพิกัดล่าสุดมาพล็อตตำแหน่งเครื่องจักร
 ```
 
 
@@ -208,6 +207,8 @@ GO
 <img width="776" height="239" alt="image" src="https://github.com/user-attachments/assets/e99118e7-d6bc-4d2a-b514-2f94b46b7b9e" />
 
 ### STEP 4: เพิ่มหรือแก้ไขตำแหน่งข้อมูลเครื่องจักร 
+    * กด "Load Resource" ดึงข้อมูลจาก DB มาปรับขยับพิกัด
+    * ก๊อปปี้ SQL Update Script ไปรันอัปเดตข้อมูลจริง
 <img width="1920" height="955" alt="image" src="https://github.com/user-attachments/assets/d9bb4e58-2656-4105-9008-c8f3ba1b0103" />
 
 ### STEP 5: แสดงผลหน้า Dashboard 
