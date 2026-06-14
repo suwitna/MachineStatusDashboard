@@ -212,7 +212,7 @@ GO
 <img width="1920" height="955" alt="image" src="https://github.com/user-attachments/assets/d9bb4e58-2656-4105-9008-c8f3ba1b0103" />
 
 ### STEP 5: แสดงผลหน้า Dashboard 
-<img width="1920" height="955" alt="image" src="https://github.com/user-attachments/assets/2e272025-8161-41d1-a4a4-da3039b32ca5" />
+<img width="1920" height="960" alt="image" src="https://github.com/user-attachments/assets/1f051e2d-0c4a-4bf0-b9d2-d10b40b13fd4" />
 
 ---
 ### ตัวอย่าง SQL Update command
