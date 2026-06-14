@@ -102,4 +102,92 @@ STEP 1: เตรียมฐานข้อมูล
                            และดวงไฟย่อย 3 สี (แดง, เขียว, ดำ) แบบล็อกเอฟเฟกต์ Hover
 ```
 
+### STEP 1: เตรียมฐานข้อมูล 
+* SQL Create DB
 
+```sql
+-- สำหรับใช้สร้างตารางใหม่ในฐานข้อมูล seniorth_db
+CREATE TABLE [dbo].[MachineLayouts] (
+    -- 1. คีย์หลักและข้อมูลพื้นฐาน (Identity & Metadata)
+    [Id]                 INT IDENTITY(1,1) NOT NULL,
+    [MachineId]          VARCHAR(50)       NOT NULL,
+    [ResourceLocation]   NVARCHAR(150)     NULL,
+    [Plant]              VARCHAR(20)       NOT NULL,
+    [Area]               NVARCHAR(100)     NULL,
+    [OldResourceName]    NVARCHAR(100)     NULL,
+
+    -- 2. ข้อมูลสถานะและรูปแบบ (Status & Styles)
+    [recordType]         VARCHAR(50)       NULL,
+    [Status]             NVARCHAR(100)     NULL,
+    [RequestDate]        DATETIME          NULL,
+    [ColorCode]          VARCHAR(10)       NULL,
+    [FontSize]           FLOAT             NOT NULL DEFAULT 11.0,
+    [FontWeight]         VARCHAR(20)       NOT NULL DEFAULT 'normal',
+    
+    -- 3. โครงสร้างพิกัดภายนอก (Global Percentages - % Framework)
+    [LeftPct]            FLOAT             NULL,
+    [TopPct]             FLOAT             NULL,
+    [WidthPct]           FLOAT             NULL,
+    [HeightPct]          FLOAT             NULL,
+
+    -- 4. โครงสร้างพิกัดเวกเตอร์ภายใน (Localized Component Space - Pixels)
+    [ViewBoxW]           FLOAT             NULL,
+    [ViewBoxH]           FLOAT             NULL,
+    [X1]                 FLOAT             NULL,
+    [Y1]                 FLOAT             NULL,
+    [X2]                 FLOAT             NULL,
+    [Y2]                 FLOAT             NULL,
+    [BoxX]               FLOAT             NULL,
+    [BoxY]               FLOAT             NULL,
+    [BoxW]               FLOAT             NOT NULL DEFAULT 125.0,
+    [BoxH]               FLOAT             NOT NULL DEFAULT 24.0,
+
+    -- 5. บันทึกเวลาและแฟล็กสถานะ (Audit Logs & Flags)
+    [UpdatedAt]          DATETIME          NOT NULL DEFAULT GETDATE(),
+    [IsPlotted]          CHAR(1)           NOT NULL DEFAULT 'N',
+
+    -- การตั้งค่า Constraints
+    CONSTRAINT [PK_MachineLayouts] PRIMARY KEY CLUSTERED ([Id] ASC),
+    CONSTRAINT [UQ_MachineLayouts_MachineId] UNIQUE ([MachineId]),
+    CONSTRAINT [CK_MachineLayouts_IsPlotted] CHECK ([IsPlotted] IN ('Y', 'N'))
+);
+GO
+
+-- สร้าง Non-Clustered Index เพื่อเร่งความเร็วในการโหลดข้อมูลแยกตาม Plant (ฝั่ง Dashboard/Editor Fetch)
+CREATE NONCLUSTERED INDEX [IX_MachineLayouts_Plant]
+ON [dbo].[MachineLayouts] ([Plant])
+INCLUDE ([MachineId], [IsPlotted]);
+GO
+```
+* ในกรณีมีตารางข้อมูลอยูแล้ว SQL Alter DB
+
+```sql
+SQL ALTER TABLE สำหรับนำไปรันอัปเดตเพื่อเพิ่มคอลัมน์พิกัด เข้าไปในตาราง MachineLayouts เดิมที่มีอยู่แล้ว
+
+ALTER TABLE [dbo].[MachineLayouts]
+ADD 
+    -- 1. โครงสร้างพิกัดภายนอก (Global Percentages Framework - หน่วยเป็น %)
+    [LeftPct]      FLOAT NULL,
+    [TopPct]       FLOAT NULL,
+    [WidthPct]     FLOAT NULL,
+    [HeightPct]    FLOAT NULL,
+
+    -- 2. โครงสร้างพิกัดเวกเตอร์ภายใน (Localized Inside Coordinates - หน่วยเป็น Pixel)
+    [ViewBoxW]     FLOAT NULL,
+    [ViewBoxH]     FLOAT NULL,
+    [X1]           FLOAT NULL,
+    [Y1]           FLOAT NULL,
+    [X2]           FLOAT NULL,
+    [Y2]           FLOAT NULL,
+    [BoxX]         FLOAT NULL,
+    [BoxY]         FLOAT NULL,
+    [BoxW]         FLOAT NOT NULL DEFAULT 125.0,
+    [BoxH]         FLOAT NOT NULL DEFAULT 24.0,
+
+    -- 3. ข้อมูลสไตล์ รูปแบบฟอนต์ และตรวจสอบความปลอดภัย
+    [FontSize]     FLOAT NOT NULL DEFAULT 11.0,
+    [FontWeight]   VARCHAR(20) NOT NULL DEFAULT 'normal',
+    [UpdatedAt]    DATETIME NOT NULL DEFAULT GETDATE(),
+    [IsPlotted]    CHAR(1) NOT NULL DEFAULT 'N';
+GO
+```
