@@ -1,0 +1,1075 @@
+﻿@*
+ * @model    : WebApplication1.Models.MachineLayout[]
+ * PURPOSE   : Receives machine array data (ID, Code, Status, X/Y coordinates) from C# Backend.
+ * EXTENSION : Map this model array inside the JS loop below to dynamically plot machines on the map.
+ *@
+@model WebApplication1.Models.MachineLayout[]
+
+@{
+    /*
+     * Layout = null
+     * PURPOSE   : Disables master layout (_Layout.cshtml) to prevent global CSS/JS conflicts.
+     * WARNING   : DO NOT remove or inherit global themes. Absolute isolation is required 
+     * to maintain pixel-perfect coordinate mapping for the Zoom & Pan canvas.
+     */
+    Layout = null; 
+
+	var availablePlants = Model
+		.Where(m => !string.IsNullOrEmpty(m.Plant))
+		.Select(m => m.Plant) 
+		.Distinct()
+		.OrderBy(a => a)
+		.ToList();
+
+	string firstPlantName = availablePlants.Count > 0 ? availablePlants[0] : "F1";
+	string initialFactoryBg = Url.Content($"~/images/factory_floor_{firstPlantName}.png");
+
+	// =================================================================
+	// 🎯 Centralized blackground image size
+	// =================================================================
+	int bgImgWidth = 1889;
+	int bgImgHeight = 689;
+}
+
+<style>
+	:root {
+		--bp-width: @(bgImgWidth)px;
+		--bp-height: @(bgImgHeight)px;
+	}
+</style>
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG to SQL & Mock Data Editor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+        /* ==========================================================================================
+         * 1. GLOBAL LAYOUT
+         * ========================================================================================== */
+        body {
+            background-color: #212529; /* Updated to light gray theme */
+            color: #212529;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden; /* CRITICAL: Disables browser scroll to allow custom Zoom/Pan canvas */
+        }
+
+        .sidebar {
+            height: 100vh;
+            overflow-y: auto; /* Scrollable area for large machine lists */
+            background-color: #212529;
+            padding: 20px;
+            z-index: 10; /* Keeps control panel above the canvas layer */
+            position: relative;
+        }
+
+        /* ==========================================================================================
+         * 2. ZOOM & PAN CANVAS LAYERING (Do not change hierarchical positioning)
+         * ========================================================================================== */
+        
+        /* Layer 1: Window Masking */
+        #canvas-viewport {
+            position: relative;
+            width: 100%;
+            height: calc(100vh - 130px);
+            overflow: hidden;
+            background-color: #e2e3e5;
+            border-radius: 8px;
+            border: 1px solid #343a40;
+            cursor: grab;
+        }
+
+        #canvas-viewport:active {
+            cursor: grabbing;
+        }
+
+        /* Layer 2: JS Matrix Transform Target (translate/scale applies here) */
+        #workspace-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: 0 0; /* CRITICAL: Keeps zoom anchored to top-left coordinate */
+            display: inline-block;
+        }
+
+        /* Layer 3: Relative Coordinate Bound */
+        #editor-container {
+            position: relative;
+            display: inline-block;
+            min-width: 800px;
+            min-height: 500px;
+        }
+
+        /* Layer 4: Base Asset (Factory Floor Background Image) */
+        #bg-preview {
+            display: block;
+            max-width: none; /* Prevents image squeezing */
+            height: auto;
+            user-select: none;
+            -webkit-user-drag: none; /* Disables default browser image dragging */
+            min-width: 800px;
+            min-height: 500px;
+            background-color: #e2e3e5;
+        }
+
+        /* Layer 5: Vector Interaction Plane */
+        #svg-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: auto; /* Allows mouse events for vector plotting */
+        }
+
+        /* Layer 6: DOM Overlays (Text Labels) */
+        #dynamic-labels-layer {
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%;
+            pointer-events: none; /* CRITICAL: Mouse passes through to reach handles underneath */
+            z-index: 10;
+        }
+
+        /* ==========================================================================================
+         * 3. INTERACTIVE ELEMENT HANDLES
+         * ========================================================================================== */
+        .label-bg {
+            fill: rgba(255, 250, 230, 0.95);
+            stroke: #b5b09c;
+            stroke-width: 1.2;
+            rx: 3px;
+            cursor: move;
+        }
+
+        .status-dot {
+            r: 4px;
+            fill: #6c757d;
+        }
+
+        .arrow-start-handle {
+            fill: #ff9800;
+            stroke: #fff;
+            stroke-width: 1.5;
+            r: 6px;
+            cursor: pointer;
+        }
+
+        .arrow-tip-handle {
+            fill: #dc3545;
+            stroke: #fff;
+            stroke-width: 1.5;
+            r: 6px;
+            cursor: crosshair;
+        }
+
+        /* ==========================================================================================
+         * 4. UI COMPONENTS & STATUS INDICATORS
+         * ========================================================================================== */
+        pre {
+            background-color: #050505;
+            color: #a9ffaf; /* Code terminal style */
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            max-height: 220px;
+            overflow-y: auto;
+            border: 1px solid #343a40;
+        }
+
+        /* Resource Layout Sidebar Cards */
+        .mac-item {
+            background: #2c313c;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            border-left: 4px solid #0d6efd;
+        }
+
+        /* Resource Layout Real-time Status Mappings */
+        .border-running    { border-left-color: #198754; } /* Green */
+        .border-stop       { border-left-color: #dc3545; } /* Red */
+        .border-disconnect { border-left-color: #6c757d; } /* Gray */
+
+        .nav-tabs .nav-link {
+            color: #a5a5a5;
+            font-size: 12px;
+            padding: 5px 10px;
+        }
+
+        .nav-tabs .nav-link.active {
+            background-color: #343a40;
+            color: #fff;
+            border-color: #454d55;
+        }
+
+        /* ==========================================================================================
+         * 5. UX ANIMATIONS
+         * ========================================================================================== */
+        .flash-new-item {
+            animation: focusFlash 1s ease-in-out 3; /* Visual feedback for newly spawned elements */
+        }
+
+        @@keyframes focusFlash {
+            0%   { filter: drop-shadow(0px 0px 2px #ff9800); opacity: 0.5; }
+            50%  { filter: drop-shadow(0px 0px 25px #0dcaf0); opacity: 1.0; }
+            100% { filter: drop-shadow(0px 0px 2px #ff9800); opacity: 0.5; }
+        }
+	</style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            
+            <div class="col-9 p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+					<a href="/Home/Index" class="text-decoration-none">
+						<h5 class="text-white m-0">📊 Dashboard</h5>
+					</a>
+                    <div class="d-flex align-items-center">
+                        <button class="btn btn-sm btn-outline-light me-2" id="btn-zoom-out">➖</button>
+                        <span class="badge bg-dark px-3 py-2 border border-secondary text-info" id="zoom-scale">Zoom: 100%</span>
+                        <button class="btn btn-sm btn-outline-light ms-2 me-3" id="btn-zoom-in">➕</button>
+                        <button class="btn btn-sm btn-secondary me-2" id="btn-zoom-reset">🔄 Reset</button>
+                    </div>
+                </div>
+
+                <div class="mb-2 row g-2">
+                    <div class="col-7">
+                        <input type="file" id="image-loader" class="form-control form-control-sm bg-dark text-white border-secondary" accept="image/*">
+                    </div>
+                </div>
+
+                <div id="canvas-viewport">
+                    <div id="workspace-container">
+                        <div id="editor-container">
+                            <img id="bg-preview" src="" alt="--- Please choose a factory floor background image first ---" />
+			
+                            <svg id="svg-overlay"></svg>
+
+                            <div id="dynamic-labels-layer"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-3 sidebar border-start border-secondary">
+                <h6 class="text-info mb-2">➕ Add Resource (Single)</h6>
+                <div class="input-group input-group-sm mb-3">
+                    <input type="text" id="mac-name" class="form-control bg-dark text-white border-secondary" placeholder="พิมพ์ชื่อเครื่องจักรที่นี่...">
+                    <button class="btn btn-primary" id="btn-add">Add</button>
+                </div>
+
+                <h6 class="text-success mb-2">📥 Add Resource (Multiple line)</h6>
+                <div class="mb-2">
+                    <textarea id="bulk-input" class="form-control bg-dark text-white border-secondary" rows="3" style="font-size: 11px;" placeholder="พิมพ์ชื่อเครื่องจักร คั่นด้วยขึ้นบรรทัดใหม่..."></textarea>
+                </div>
+                <div class="d-flex gap-2 mb-3">
+                    <button class="btn btn-sm btn-success fw-bold flex-fill" id="btn-bulk-import">Add Multiple</button>
+                </div>
+
+                <h6 class="text-danger mb-2">🗄️ Load Resource (From Database)</h6>
+                <div class="d-flex align-items-center gap-2 mb-3 text-white" style="font-family: 'Segoe UI', Arial, sans-serif;">
+					<span class="fw-bold text-nowrap" style="font-size: 1.1rem; opacity: 0.9; letter-spacing: 0.5px;">Floor:</span>
+
+					<div style="position: relative; display: inline-block;">
+						<select class="form-select text-white fw-bold" id="ddl-plant" 
+								style="width: auto; 
+									   min-width: 100px; 
+									   height: 34px; 
+									   background-color: #212529; 
+									   border: 1px solid #495057; 
+									   border-radius: 4px;
+									   font-size: 1.2rem;
+									   cursor: pointer;
+									   box-shadow: none;
+									   text-align: left; 
+									   padding: 0 28px 0 12px; 
+									   color: #ffffff !important;
+									   appearance: none !important;
+									   -webkit-appearance: none !important;
+									   -moz-appearance: none !important;
+									   background-image: none !important;">
+							@if (availablePlants.Count == 0)
+							{
+								<option value="F1" class="bg-dark text-white">F1</option>
+							}
+							else
+							{
+								@for (int i = 0; i < availablePlants.Count; i++)
+								{
+									<option value="@availablePlants[i]" selected="@(i == 0)" class="bg-dark text-white">@availablePlants[i]</option>
+								}
+							}
+						</select>
+        
+						<div style="position: absolute; 
+									right: 12px; 
+									top: 50%; 
+									transform: translateY(-25%); 
+									width: 0; 
+									height: 0; 
+									border-left: 5px solid transparent; 
+									border-right: 5px solid transparent; 
+									border-top: 5px solid #ffffff; 
+									pointer-events: none;
+									opacity: 0.85;">
+						</div>
+					</div>
+    
+					<button class="btn btn-sm btn-danger fw-bold flex-fill" id="btn-data-import" style="height: 34px; line-height: 1.2; font-size: 0.95rem; letter-spacing: 0.3px;">
+						Load Resource
+					</button>
+				</div>
+                <hr class="border-secondary">
+
+                <h6 class="text-white mb-2">🛠 Resource Layout Workspace</h6>
+                <div id="mac-list" style="max-height: 38vh; overflow-y: auto;" class="mb-3 pe-1">
+                    <div class="text-white-50 text-center small py-3">No Data Found</div>
+                </div>
+
+                <ul class="nav nav-tabs" id="codeTabs" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active" id="sql-tab" data-bs-toggle="tab" data-bs-target="#sql-pane" type="button">🗄️ SQL Query</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="mock-tab" data-bs-toggle="tab" data-bs-target="#mock-pane" type="button">📦 C# Mock Data</button>
+                    </li>
+                </ul>
+                <div class="tab-content bg-dark p-2 border border-top-0 border-secondary rounded-bottom">
+                    <div class="tab-pane fade show active" id="sql-pane">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="text-warning" style="font-size: 10px;">SQL Update Script</span>
+                            <button class="btn btn-xs btn-outline-success py-0 px-2" style="font-size: 11px;" id="btn-copy-sql">Copy SQL</button>
+                        </div>
+                        <pre><code id="output-sql">-- SQL Commands Go Here...</code></pre>
+                    </div>
+                    <div class="tab-pane fade" id="mock-pane">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="text-warning" style="font-size: 10px;">Copy Mock Layout Array</span>
+                            <button class="btn btn-xs btn-outline-info py-0 px-2" style="font-size: 11px;" id="btn-copy-mock">Copy Mock Data</button>
+                        </div>
+                        <pre><code id="output-mock">// C# Mock Objects Go Here...</code></pre>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="modal fade" id="schemaGuideModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark text-white border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-info">📖 Database Schema Dictionary</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="font-size:12px;">
+                    <table class="table table-bordered table-dark table-striped m-0">
+                        <thead>
+                            <tr class="text-info">
+                                <th>คอลัมน์</th>
+                                <th>ประเภท</th>
+                                <th>หน้าที่การควบคุมหน้าจอ / ความเชื่อมโยง</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>MachineId</td><td>NVARCHAR(50)</td><td>Primary Key ใช้สำหรับ Map จับคู่ชุดสัญญาณข้อมูล</td></tr>
+                            <tr><td>ResourceLocation</td><td>NVARCHAR(100)</td><td>ชื่อตำแหน่งโมดูลย่อยในไลน์การผลิต เช่น F1 LEAP CELL 21</td></tr>
+                            <tr><td>recordType</td><td>NVARCHAR(30)</td><td>ประเภทเอกสารตั๋วซ่อม: Improvement, Breakdown, Preventive, หรือ NULL</td></tr>
+                            <tr><td>Status</td><td>NVARCHAR(50)</td><td>สถานะดำเนินงาน: Job Completed, Waiting Approve, Waiting Maintenance, Waiting Assignment, หรือ NULL</td></tr>
+                            <tr><td>ColorCode</td><td>VARCHAR(10)</td><td>รหัสสีสถานะประยุกต์ใช้งานไฟ LED และก้านเส้นชี้พิกัดแผนผัง</td></tr>
+                            <tr><td>LeftPct / TopPct</td><td>DECIMAL(5,2)</td><td>จุดยึดขอบนอกสุด คุมตำแหน่งสัดส่วน % สัมพัทธ์เทียบรูปใหญ่</td></tr>
+                            <tr><td>X1, Y1 / X2, Y2</td><td>INT</td><td>พิกัดจุดโคนสายชี้ และจุดปลายหัวลูกศรชี้พิกัดเครื่องจักร</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+	/* ==========================================================================================
+	 * SECTION 1: GLOBAL VARIABLES & INITIALIZATION
+	 * ========================================================================================== */
+	// Razor-to-JS Gateway: Injects Initial C# DB Array Data into Client memory
+	var MockMachineLayouts = @Json.Serialize(Model) || [];
+	console.log("Initial Loaded Data:", MockMachineLayouts);
+
+	// ⚙️ Bind server-side blueprint dimensions directly to client context for 100% computational accuracy
+	const BG_IMG_WIDTH = @bgImgWidth;
+	const BG_IMG_HEIGHT = @bgImgHeight;
+
+	// Centralized DOM Elements Cache
+	const svgOverlay = document.getElementById('svg-overlay');
+	const imageLoader = document.getElementById('image-loader');
+	const bgPreview = document.getElementById('bg-preview');
+	const workspaceContainer = document.getElementById('workspace-container');
+	const viewport = document.getElementById('canvas-viewport');
+	const macList = document.getElementById('mac-list');
+
+	// Core State System Management
+	let machines = [];         // Active tracked elements in workspace
+	let activeElement = null;   // Current dragging machine reference
+	let activeDragType = null;  // Identifiers: 'label' | 'arrow-start' | 'arrow-tip'
+	let activeMacId = null;
+
+	// Viewport Transformation Configs
+	let imgW = BG_IMG_WIDTH;
+	let imgH = BG_IMG_HEIGHT;
+	let scale = 1.0;
+	let panX = 0;
+	let panY = 0;
+	let isPanning = false;
+	let startPanX = 0;
+	let startPanY = 0;
+
+	// Dynamic SVG ViewBox Aspect Ratio Initialization
+	svgOverlay.setAttribute("viewBox", `0 0 ${imgW} ${imgH}`);
+
+	/* ==========================================================================================
+	 * INITIALIZATION: APP LOAD ACTIONS
+	 * ========================================================================================== */
+	document.addEventListener("DOMContentLoaded", function() {
+		// Validates action button states immediately upon application launch
+		const importBtnAdd = document.getElementById('btn-add');
+		const importBtnBulk = document.getElementById('btn-bulk-import');
+
+		if (importBtnAdd && importBtnBulk) {
+			if (!bgPreview || !bgPreview.src || bgPreview.src === window.location.href) {
+				importBtnAdd.disabled = true;
+				importBtnAdd.title = "Please load a factory floor background image first.";
+				importBtnBulk.disabled = true;
+				importBtnBulk.title = "Please load a factory floor background image first.";
+			} else {
+				importBtnAdd.disabled = false;
+				importBtnAdd.title = "Add Resource Layout Data";
+				importBtnBulk.disabled = false;
+				importBtnBulk.title = "Add Bulk Resource Layout Data";
+			}
+		}
+	});
+
+	function onBackgroundImageLoadSuccess() {
+		// Evaluates asset visibility safely after dynamic uploads or fetches
+		const importBtnAdd = document.getElementById('btn-add');
+		const importBtnBulk = document.getElementById('btn-bulk-import');
+
+		if (importBtnAdd && importBtnBulk) {
+			if (!bgPreview || !bgPreview.src || bgPreview.src === window.location.href) {
+				importBtnAdd.disabled = true;
+				importBtnAdd.title = "Please load a factory floor background image first.";
+				importBtnBulk.disabled = true;
+				importBtnBulk.title = "Please load a factory floor background image first.";
+			} else {
+				importBtnAdd.disabled = false;
+				importBtnAdd.title = "Add Resource Layout Data";
+				importBtnBulk.disabled = false;
+				importBtnBulk.title = "Add Bulk Resource Layout Data";
+			}
+		}
+	}
+
+	/* ==========================================================================================
+	 * SECTION 2: VIEWPORT INTERACTION (ZOOM & PAN ENGINE)
+	 * ========================================================================================== */
+	function updateTransform() {
+		// Executes CSS Matrix Transformations for fluid canvas exploration
+		workspaceContainer.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+		document.getElementById('zoom-scale').innerText = `Zoom: ${Math.round(scale * 100)}%`;
+	}
+
+	// Dynamic Wheel Zoom Engine (Scales relative to focused mouse coordinate)
+	viewport.addEventListener('wheel', function(e) {
+		e.preventDefault();
+		const zoomFactor = 1.1;
+		const rect = viewport.getBoundingClientRect();
+		const mouseX = e.clientX - rect.left;
+		const mouseY = e.clientY - rect.top;
+
+		const svgMouseX = (mouseX - panX) / scale;
+		const svgMouseY = (mouseY - panY) / scale;
+
+		if (e.deltaY < 0) {
+			scale = Math.min(scale * zoomFactor, 5.0); // Maximum 500% zoom
+		} else {
+			scale = Math.max(scale / zoomFactor, 0.3); // Minimum 30% zoom
+		}
+
+		panX = mouseX - svgMouseX * scale;
+		panY = mouseY - svgMouseY * scale;
+		updateTransform();
+	});
+
+	// Canvas Panning Handlers
+	viewport.addEventListener('mousedown', function(e) {
+		// Triggers pan via Right-Click (button 2) or direct background interactions
+		if (e.button === 2 || e.target === viewport || e.target === bgPreview || e.target === svgOverlay) {
+			isPanning = true;
+			startPanX = e.clientX - panX;
+			startPanY = e.clientY - panY;
+		}
+	});
+
+	document.addEventListener('mousemove', function(e) {
+		if (!isPanning) return;
+		panX = e.clientX - startPanX;
+		panY = e.clientY - startPanY;
+		updateTransform();
+	});
+
+	document.addEventListener('mouseup', () => isPanning = false);
+	viewport.addEventListener('contextmenu', e => e.preventDefault()); // Disables default browser context menu
+
+	// Navigation Toolbar Actions
+	document.getElementById('btn-zoom-in').addEventListener('click', () => { scale = Math.min(scale * 1.2, 5.0); updateTransform(); });
+	document.getElementById('btn-zoom-out').addEventListener('click', () => { scale = Math.max(scale / 1.2, 0.3); updateTransform(); });
+	document.getElementById('btn-zoom-reset').addEventListener('click', () => { scale = 1.0; panX = 0; panY = 0; updateTransform(); });
+
+
+	/* ==========================================================================================
+	 * SECTION 3: IMPORT & DATA INGESTION SUBSYSTEMS
+	 * ========================================================================================== */
+	
+	// Dynamic Background Upload Handler (Recalculates Master Aspect Ratio)
+	imageLoader.addEventListener('change', function(e) {
+		if (e.target.files && e.target.files[0]) {
+			const reader = new FileReader();
+			reader.onload = function(event) {
+				const img = new Image();
+				img.onload = function() {
+					imgW = this.width;  // Captures structural resolution of uploaded file
+					imgH = this.height;
+					bgPreview.src = event.target.result;
+					svgOverlay.setAttribute("viewBox", `0 0 ${imgW} ${imgH}`); // Syncs vector plane to image sizes
+					machines = [];      // Flushes current session mapping to prevent ratio distortion
+					render();
+					onBackgroundImageLoadSuccess();
+				};
+				img.src = event.target.result;
+			}
+			reader.readAsDataURL(e.target.files[0]);
+		}
+	});
+
+	// Manual Row Insertion (Plots new machine directly in the viewport center)
+	document.getElementById('btn-add').addEventListener('click', function() {
+		const inputMac = document.getElementById('mac-name');
+		const id = inputMac.value.trim();
+
+		if (!id) return alert('Please enter a Resource Name.');
+		if (machines.some(m => m.id === id)) return alert(`Resource Name '${id}' already exists in the workspace!`);
+
+		addMachineToWorkspace(id, '#2ECC71', 0);
+		inputMac.value = '';
+		inputMac.focus();
+	});
+
+	// Bulk Clipboard Parser (Parses TSV / Excel data models)
+	document.getElementById('btn-bulk-import').addEventListener('click', function() {
+		const rawText = document.getElementById('bulk-input').value.trim();
+		if (!rawText) return alert('Please paste the copied data first!');
+
+		const lines = rawText.split('\n');
+		let importedCount = 0;
+		let skippedCount = 0;
+		let startIndex = 0;
+
+		// Column Header Filtering Bypass (Supports English and localized header signatures)
+		if (lines[0].toLowerCase().includes('resource') || lines[0].includes('รหัส') || lines[0].includes('plant')) {
+			startIndex = 1;
+		}
+
+		for (let i = startIndex; i < lines.length; i++) {
+			const currentLine = lines[i].trim();
+			if (!currentLine) continue;
+
+			const columns = currentLine.split('\t'); // Split via tabs
+			const id = columns[0] ? columns[0].trim().replace(/[\r\n]/g, '') : '';
+
+			if (!id) continue;
+			if (machines.some(m => m.id === id)) { skippedCount++; continue; }
+
+			// Fallback mapping dictionaries for loose inputs
+			let location = columns[1] ? columns[1].trim() : "F1 LEAP CELL " + (20 + importedCount);
+			let plant = columns[2] ? columns[2].trim() : "F1";
+			let area = columns[3] ? columns[3].trim() : "EDM";
+			let recType = columns[4] ? columns[4].trim() : "Breakdown";
+			let status = columns[5] ? columns[5].trim() : "Job Completed";
+			let reqDate = columns[6] ? columns[6].trim() : new Date().toLocaleString('en-US');
+			let colorCode = columns[columns.length - 1] ? columns[columns.length - 1].trim().toUpperCase() : '#D3D3D3';
+
+			if (!colorCode.startsWith('#')) colorCode = '#D3D3D3';
+
+			addMachineToWorkspace(id, colorCode, importedCount, {
+				location, plant, area, recType, status, reqDate
+			});
+			importedCount++;
+		}
+
+		render();
+		let msg = `🎉 Successfully imported ${importedCount} resource(s).`;
+		if (skippedCount > 0) msg += `\n⚠️ Skipped ${skippedCount} duplicate resource name(s) already in workspace.`;
+		alert(msg);
+		document.getElementById('bulk-input').value = '';
+	});
+
+	// AJAX Database Fetch Action
+	document.getElementById('btn-data-import').addEventListener('click', function() {
+		const ddlPlant = document.getElementById('ddl-plant');
+		const selectedPlant = ddlPlant.value;
+
+		const imageLoader = document.getElementById('image-loader');
+		const bgPreview = document.getElementById('bg-preview');
+
+		// 🖼️ 1. AUTOMATIC BACKGROUND ASSET INTERCHANGER ENGINE
+		if (bgPreview) {
+			console.log(`🖼️ Auto-loading background asset for: factory_floor_${selectedPlant}.png`);
+			
+			// Dynamically swap the background workspace image based on selection context
+			bgPreview.src = `/images/factory_floor_${selectedPlant}.png`;
+
+			// Fallback handler: Triggers alternative layout view context in case resource location is undefined (HTTP 404)
+			bgPreview.onerror = function() {
+				console.warn(`⚠️ Target layout asset not found. Rolling back to default canvas workspace workspace context.`);
+				this.src = `/images/factory_floor_Default.png`; 
+				this.onerror = null; // Suppresses potential endless callback recursion cycles
+			};
+		}
+
+		// Flush local memory tracking stack before binding incoming stream payloads
+		machines = []; 
+
+		// Cache Busting Injection Engine: Injects localized timestamp parameters to force database reflection cycles
+		fetch(`/home/GetLatestMachineLayout?plantName=${encodeURIComponent(selectedPlant)}&_=${Date.now()}`)
+			.then(res => {
+				if (!res.ok) throw new Error("HTTP Network Pipe Transmission Failure.");
+				return res.json();
+			})
+			.then(data => {
+				data.forEach(item => {
+					machines.push({
+						id: item.machineId,
+						resourceLocation: item.resourceLocation,
+						plant: item.plant,
+						area: item.area,
+						recordType: item.recordType,
+						status: item.status,
+						requestDate: item.requestDate,
+						colorCode: item.colorCode,
+						leftPct: item.leftPct,       // Fluid Layout boundary anchors
+						topPct: item.topPct,
+						widthPct: item.widthPct,
+						heightPct: item.heightPct,
+						viewBoxW: item.viewBoxW,     // Relative micro-canvas ratios
+						viewBoxH: item.viewBoxH,
+						startX: item.x1,             // Internal Local Vectors
+						startY: item.y1,
+						tipX: item.x2,
+						tipY: item.y2,
+						labelX: item.boxX,
+						labelY: item.boxY,
+						labelW: item.boxW,
+						labelH: item.boxH,
+						fontSize: item.fontSize,
+						fontWeight: item.fontWeight || "normal",
+						isNew: false
+					});
+				});
+
+				onBackgroundImageLoadSuccess();
+				render();
+				console.log(`📥 Successfully synchronized ${machines.length} resource layout(s) from database.`);
+				alert(`📥 Successfully loaded ${machines.length} resource layout(s) from database!`);
+			})
+			.catch(err => {
+				console.error("❌ Pipeline Error fetching database layouts:", err);
+				alert("❌ Failed to fetch database layouts. Please check application log pipelines.");
+			});
+	});
+
+
+	/* ==========================================================================================
+	 * SECTION 4: COMPUTATION ENGINE (RELATIVE POSITION MATRIX CALCULATIONS)
+	 * ========================================================================================== */
+	function addMachineToWorkspace(id, colorCode, offsetIndex = 0, extraFields = null) {
+		// Generates initial spatial layout positioning calculated from viewport center points
+		const viewW = viewport.clientWidth;
+		const viewH = viewport.clientHeight;
+		let spawnX = Math.round((viewW / 2 - panX) / scale) + (offsetIndex * 15);
+		let spawnY = Math.round((viewH / 2 - panY) / scale) + (offsetIndex * 15);
+
+		// Boundaries clamping rules
+		if (spawnX < 50) spawnX = 50; if (spawnX > imgW - 100) spawnX = imgW - 100;
+		if (spawnY < 50) spawnY = 50; if (spawnY > imgH - 100) spawnY = imgH - 100;
+
+		const ext = extraFields || {
+			location: "", plant: "", area: "", recordType: "NULL", status: "NULL",
+			requestDate: new Date().toLocaleString('en-US')
+		};
+
+		const tempMac = {
+			id: id,
+			resourceLocation: ext.location,
+			plant: ext.plant,
+			area: ext.area,
+			recordType: ext.recType || ext.recordType,
+			status: ext.status,
+			requestDate: ext.reqDate || ext.requestDate,
+			colorCode: colorCode,
+			labelX: spawnX - 55, labelY: spawnY - 30, labelW: 125, labelH: 24,
+			startX: spawnX, startY: spawnY - 10, tipX: spawnX, tipY: spawnY + 30,
+			fontSize: 11.0, fontWeight: 'normal', isNew: true
+		};
+
+		calculateBoundaries(tempMac);
+		machines.push(tempMac);
+		render();
+
+		setTimeout(() => { if (macList) macList.scrollTop = macList.scrollHeight; }, 50);
+	}
+	
+	function calculateBoundaries(mac) {
+		// CRITICAL ALGORITHM: Computes fluid bounding box wraps and scales vectors into localized frames
+		const padding = 15;
+		const currentImgW = imgW || BG_IMG_WIDTH;
+		const currentImgH = imgH || BG_IMG_HEIGHT;
+
+		if (mac.leftPct === undefined) {
+			// PHASE 1: Spawning calculations (Translates viewport positions into global layout percentages)
+			const minX = Math.min(mac.startX, mac.tipX, mac.labelX) - padding;
+			const maxX = Math.max(mac.startX, mac.tipX, mac.labelX + mac.labelW) + padding;
+			const minY = Math.min(mac.startY, mac.tipY, mac.labelY) - padding;
+			const maxY = Math.max(mac.startY, mac.tipY, mac.labelY + mac.labelH) + padding;
+
+			mac.viewBoxW = Math.round(maxX - minX);
+			mac.viewBoxH = Math.round(maxY - minY);
+			mac.leftPct = parseFloat(((minX / currentImgW) * 100).toFixed(2));
+			mac.topPct = parseFloat(((minY / currentImgH) * 100).toFixed(2));
+			mac.widthPct = parseFloat(((mac.viewBoxW / currentImgW) * 100).toFixed(2));
+			mac.heightPct = parseFloat(((mac.viewBoxH / currentImgH) * 100).toFixed(2));
+
+			// Shifting component variables from global pixel values into Localized Component Space (0,0)
+			mac.startX = Math.round(mac.startX - minX);
+			mac.startY = Math.round(mac.startY - minY);
+			mac.tipX = Math.round(mac.tipX - minX);
+			mac.tipY = Math.round(mac.tipY - minY);
+			mac.labelX = Math.round(mac.labelX - minX);
+			mac.labelY = Math.round(mac.labelY - minY);
+		} else {
+			// PHASE 2: Dynamic drag updates (Recomputes global matrix box frames from internal vector mutations)
+			const minX = Math.min(mac.startX, mac.tipX, mac.labelX) - padding;
+			const maxX = Math.max(mac.startX, mac.tipX, mac.labelX + mac.labelW) + padding;
+			const minY = Math.min(mac.startY, mac.tipY, mac.labelY) - padding;
+			const maxY = Math.max(mac.startY, mac.tipY, mac.labelY + mac.labelH) + padding;
+
+			const deltaW = Math.round(maxX - minX);
+			const deltaH = Math.round(maxY - minY);
+
+			const currentLeftPixels = (mac.leftPct / 100) * currentImgW;
+			const currentTopPixels = (mac.topPct / 100) * currentImgH;
+
+			const newLeftPixels = currentLeftPixels + minX;
+			const newTopPixels = currentTopPixels + minY;
+
+			mac.leftPct = parseFloat(((newLeftPixels / currentImgW) * 100).toFixed(2));
+			mac.topPct = parseFloat(((newTopPixels / currentImgH) * 100).toFixed(2));
+			mac.widthPct = parseFloat(((deltaW / currentImgW) * 100).toFixed(2));
+			mac.heightPct = parseFloat(((deltaH / currentImgH) * 100).toFixed(2));
+			mac.viewBoxW = deltaW;
+			mac.viewBoxH = deltaH;
+
+			// Resets child internal objects back to baseline local boundaries anchor
+			mac.startX = Math.round(mac.startX - minX);
+			mac.startY = Math.round(mac.startY - minY);
+			mac.tipX = Math.round(mac.tipX - minX);
+			mac.tipY = Math.round(mac.tipY - minY);
+			mac.labelX = Math.round(mac.labelX - minX);
+			mac.labelY = Math.round(mac.labelY - minY);
+		}
+	}
+
+
+	/* ==========================================================================================
+	 * SECTION 5: RENDER & PIPELINE OUTPUT ENGINES
+	 * ========================================================================================== */
+	function render() {
+		const dynamicLayer = document.getElementById('dynamic-labels-layer');
+		if (!dynamicLayer) return;
+
+		// UI Resets across working spaces
+		dynamicLayer.innerHTML = '';
+		svgOverlay.innerHTML = ''; 
+		macList.innerHTML = '';
+        
+		let sqlCommands = ``;
+		let mockObjects = ``;
+
+		if (machines.length === 0) {
+			macList.innerHTML = `<div class="text-white-50 text-center small py-3">No Resource Layout Data</div>`;
+			return;
+		}
+
+		machines.forEach((mac, index) => {
+			// Trigonometry Calculus: Computes dynamic directional arrow pointer tips
+			const angle = Math.atan2(mac.tipY - mac.startY, mac.tipX - mac.startX);
+			const baseLength = 8;
+			const bLeftX = mac.tipX - baseLength * Math.cos(angle - Math.PI / 6);
+			const bLeftY = mac.tipY - baseLength * Math.sin(angle - Math.PI / 6);
+			const bRightX = mac.tipX - baseLength * Math.cos(angle + Math.PI / 6);
+			const bRightY = mac.tipY - baseLength * Math.sin(angle + Math.PI / 6);
+			const pointsString = `${mac.tipX},${mac.tipY} ${bLeftX.toFixed(1)},${bLeftY.toFixed(1)} ${bRightX.toFixed(1)},${bRightY.toFixed(1)}`;
+        
+			// Encapsulates layout coordinates directly into CSS inline style tags
+			const styleString = `position: absolute; left: ${mac.leftPct}%; top: ${mac.topPct}%; width: ${mac.widthPct}%; height: ${mac.heightPct}%; pointer-events: none; overflow: visible;`;
+
+			// Theme Color to CSS border utilities mappings
+			let borderClass = 'border-running';
+			const curColor = (mac.colorCode || '#2ECC71').toUpperCase();
+			if (curColor === '#E74C3C') borderClass = 'border-stop';
+			if (curColor === '#D3D3D3') borderClass = 'border-disconnect';
+			if (curColor === '#F1C40F' || curColor === '#F39C12') borderClass = 'border-warning';
+
+			const fSize = parseFloat(mac.fontSize) || 11.0;
+
+			// Generates isolated absolute micro-containers for individual machine nodes
+			const containerDiv = document.createElement('div');
+			containerDiv.id = `container-${mac.id}`;
+			containerDiv.className = "mac-label-group";
+			containerDiv.style.cssText = styleString;
+        
+			containerDiv.setAttribute('data-mac', mac.id);
+			containerDiv.setAttribute('data-status', mac.status);
+			containerDiv.setAttribute('data-type', mac.recordType);
+
+			if (mac.isNew) {
+				containerDiv.classList.add("flash-new-item");
+				delete mac.isNew;
+			}
+
+			// Injects localized SVG layout nodes and tracking interaction handles
+			containerDiv.innerHTML = `
+				<svg viewBox="0 0 ${mac.viewBoxW} ${mac.viewBoxH}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="overflow: visible;">
+					<line x1="${mac.startX}" y1="${mac.startY}" x2="${mac.tipX}" y2="${mac.tipY}" stroke="${mac.colorCode}" stroke-width="2.5" stroke-linecap="round" />
+					<polygon points="${pointsString}" fill="${mac.colorCode}" />
+
+					<rect x="${mac.labelX}" y="${mac.labelY}" width="${mac.labelW}" height="${mac.labelH}" fill="rgba(255, 250, 230, 0.95)" stroke="#b5b09c" stroke-width="1.2" rx="3" style="pointer-events: auto; cursor: pointer;" data-id="${mac.id}" data-role="label" />
+
+					<circle cx="${mac.labelX + 12}" cy="${mac.labelY + (mac.labelH / 2)}" r="5" fill="${mac.colorCode}" stroke="#fff" stroke-width="0.5" />
+					<text x="${mac.labelX + 24}" y="${mac.labelY + (mac.labelH / 2) + 4}" fill="#212529" font-family="Arial, Segoe UI" font-size="${fSize}px" font-weight="${mac.fontWeight}" style="pointer-events:none; user-select:none;">${mac.id}</text>
+                
+					<circle cx="${mac.startX}" cy="${mac.startY}" r="6" fill="rgba(0, 123, 255, 0.7)" stroke="#fff" stroke-width="1" style="pointer-events: auto; cursor: move;" data-id="${mac.id}" data-role="arrow-start" />
+					<circle cx="${mac.tipX}" cy="${mac.tipY}" r="6" fill="rgba(220, 53, 69, 0.7)" stroke="#fff" stroke-width="1" style="pointer-events: auto; cursor: move;" data-id="${mac.id}" data-role="arrow-tip" />
+				</svg>
+			`;
+
+			// Binds drag listeners natively to generated action handles
+			containerDiv.querySelector('[data-role="label"]').addEventListener('mousedown', initiateDrag);
+			containerDiv.querySelector('[data-role="arrow-start"]').addEventListener('mousedown', initiateDrag);
+			containerDiv.querySelector('[data-role="arrow-tip"]').addEventListener('mousedown', initiateDrag);
+        
+			dynamicLayer.appendChild(containerDiv);
+
+			// Computes backend code strings updates in real-time
+			let csRecType = mac.recordType && mac.recordType !== 'NULL' ? `"${mac.recordType}"` : 'NULL';
+			let csStatus = mac.status && mac.status !== 'NULL' ? `"${mac.status}"` : 'NULL';
+
+			sqlCommands += `UPDATE MachineLayouts SET LeftPct=${mac.leftPct}, TopPct=${mac.topPct}, WidthPct=${mac.widthPct}, HeightPct=${mac.heightPct}, ViewBoxW=${mac.viewBoxW}, ViewBoxH=${mac.viewBoxH}, X1=${mac.startX}, Y1=${mac.startY}, X2=${mac.tipX}, Y2=${mac.tipY}, BoxX=${mac.labelX}, BoxY=${mac.labelY}, BoxW=${mac.labelW}, BoxH=${mac.labelH}, FontSize=${mac.fontSize.toFixed(1)}, FontWeight='${mac.fontWeight}', IsPlotted='Y' WHERE MachineId='${mac.id}';\n`;
+
+			mockObjects += `new { MachineId = "${mac.id}", ResourceLocation="${mac.resourceLocation}", Plant="${mac.plant}", Area="${mac.area}", recordType=${csRecType}, Status = ${csStatus}, RequestDate="${mac.requestDate}", ColorCode="${mac.colorCode}", LeftPct = ${mac.leftPct}, TopPct = ${mac.topPct}, WidthPct = ${mac.widthPct}, HeightPct = ${mac.heightPct}, ViewBoxW = ${mac.viewBoxW}, ViewBoxH = ${mac.viewBoxH}, X1 = ${mac.startX}, Y1 = ${mac.startY}, X2 = ${mac.tipX}, Y2 = ${mac.tipY}, BoxX = ${mac.labelX}, BoxY = ${mac.labelY}, BoxW = ${mac.labelW}, BoxH = ${mac.labelH}, FontSize = ${mac.fontSize.toFixed(1)}, FontWeight = "${mac.fontWeight}" },\n`;
+
+			// Appends configuration input rows into Right Controller Card Panel
+			const item = document.createElement('div');
+			item.className = `mac-item ${borderClass}`;
+			item.innerHTML = `
+				<div class="d-flex justify-content-between align-items-center border-bottom border-secondary pb-1 mb-2">
+					<span class="text-white fw-bold" style="font-size:12px;">📟 CNC Name: ${mac.id}</span>
+					<button class="btn btn-sm btn-danger py-0 px-2 fw-bold text-white" style="font-size:10px" onclick="deleteMachine(${index})">❌ Remove</button>
+				</div>
+
+				<div class="mb-1 text-info fw-bold" style="font-size:9px; letter-spacing: 0.5px;">⚙️ DISPLAY SETTINGS</div>
+				<div class="row g-1">
+					<div class="col-4">
+						<label class="text-white-50" style="font-size:9px">Width (px)</label>
+						<input type="number" class="form-control form-control-sm bg-dark text-white py-0 px-1" style="font-size:10px;" value="${mac.labelW}" oninput="updateProp(${index}, 'boxW', this.value)">
+					</div>
+					<div class="col-4">
+						<label class="text-white-50" style="font-size:9px">Height (px)</label>
+						<input type="number" class="form-control form-control-sm bg-dark text-white py-0 px-1" style="font-size:10px;" value="${mac.labelH}" oninput="updateProp(${index}, 'boxH', this.value)">
+					</div>
+					<div class="col-4">
+						<label class="text-white-50" style="font-size:9px">Font (px)</label>
+						<input type="number" step="0.5" class="form-control form-control-sm bg-dark text-white py-0 px-1" style="font-size:10px;" value="${fSize}" oninput="updateProp(${index}, 'size', this.value)">
+					</div>
+					<div class="col-4">
+						<label class="text-white-50" style="font-size:9px">Bold</label>
+						<select class="form-select form-select-sm bg-dark text-white py-0 px-1" style="font-size:10px;" onchange="updateProp(${index}, 'weight', this.value)">
+							<option value="bold" ${mac.fontWeight === 'bold' ? 'selected' : ''}>BOLD</option>
+							<option value="normal" ${mac.fontWeight === 'normal' ? 'selected' : ''}>Normal</option>
+						</select>
+					</div>
+				</div>
+
+				<div class="row g-1 mt-1 mb-2">
+					<div class="col-6">
+						<label class="text-white-50" style="font-size:9px">Color (Mock Data)</label>
+						<select class="form-select form-select-sm bg-dark text-white py-0 px-1" style="font-size:10px;" onchange="updateProp(${index}, 'color', this.value)">
+							<option value="#2ECC71" ${curColor === '#2ECC71' ? 'selected' : ''}>🟢 #2ECC71 (Normal)</option>
+							<option value="#E74C3C" ${curColor === '#E74C3C' ? 'selected' : ''}>🔴 #E74C3C (Breakdown)</option>
+							<option value="#F1C40F" ${curColor === '#F1C40F' ? 'selected' : ''}>🟡 #F1C40F (Pending Approval)</option>
+							<option value="#F39C12" ${curColor === '#F39C12' ? 'selected' : ''}>🟠 #F39C12 (Pending Assignment)</option>
+							<option value="#D3D3D3" ${curColor === '#D3D3D3' ? 'selected' : ''}>⚪ #D3D3D3 (Disconnected)</option>
+						</select>
+					</div>
+					<div class="col-6">
+						<label class="text-white-50" style="font-size:9px">Location (Mock Data)</label>
+						<input type="text" class="form-control form-control-sm bg-dark text-white py-0 px-1" style="font-size:10px;" value="${mac.resourceLocation || ''}" placeholder="Location" oninput="updateProp(${index}, 'loc', this.value)">
+					</div>
+				</div>
+
+				<div class="mb-1 text-success fw-bold" style="font-size:9px; letter-spacing: 0.5px;">📋 CNC WORK TICKET</div>
+				<div class="row g-1">
+					<div class="col-6">
+						<label class="text-white-50" style="font-size:9px">recordType (Mock Data)</label>
+						<select class="form-select form-select-sm bg-dark text-white py-0 px-1" style="font-size:10px;" onchange="updateProp(${index}, 'rectype', this.value)">
+							<option value="Breakdown" ${mac.recordType === 'Breakdown' ? 'selected' : ''}>Breakdown</option>
+							<option value="Improvement" ${mac.recordType === 'Improvement' ? 'selected' : ''}>Improvement</option>
+							<option value="Preventive" ${mac.recordType === 'Preventive' ? 'selected' : ''}>Preventive</option>
+							<option value="NULL" ${mac.recordType === null || mac.recordType === 'NULL' ? 'selected' : ''}>-- NULL --</option>
+						</select>
+					</div>
+					<div class="col-6">
+						<label class="text-white-50" style="font-size:9px">Status (Mock Data)</label>
+						<select class="form-select form-select-sm bg-dark text-white py-0 px-1" style="font-size:10px;" onchange="updateProp(${index}, 'status', this.value)">
+							<option value="Job Completed" ${mac.status === 'Job Completed' ? 'selected' : ''}>Job Completed</option>
+							<option value="Waiting Approve" ${mac.status === 'Waiting Approve' ? 'selected' : ''}>Waiting Approve</option>
+							<option value="Waiting Maintenance" ${mac.status === 'Waiting Maintenance' ? 'selected' : ''}>Waiting Maint.</option>
+							<option value="Waiting Assignment" ${mac.status === 'Waiting Assignment' ? 'selected' : ''}>Waiting Assign.</option>
+							<option value="NULL" ${mac.status === null || mac.status === 'NULL' ? 'selected' : ''}>-- NULL --</option>
+						</select>
+					</div>
+				</div>
+
+				<div class="row g-1 mt-1">
+					<div class="col-12">
+						<label class="text-white-50" style="font-size:9px">Ticket Date (RequestDate)</label>
+						<input type="text" class="form-control form-control-sm bg-dark text-white py-0 px-1" style="font-size:10px;" value="${mac.requestDate || ''}" oninput="updateProp(${index}, 'reqdate', this.value)" placeholder="MM/DD/YYYY HH:MM:SS AM/PM">
+					</div>
+				</div>
+			`;
+			macList.appendChild(item);
+		});
+
+		document.getElementById('output-sql').innerText = sqlCommands;
+		document.getElementById('output-mock').innerText = mockObjects;
+	}
+
+
+	/* ==========================================================================================
+	 * SECTION 6: DRAG & DROP & CONTROL SUB-FUNCTIONS
+	 * ========================================================================================== */
+	window.updateProp = function(idx, type, val) {
+		// Event handler syncing right sidebar property modifications back to memory models
+		if (!machines[idx]) return;
+
+		if (type === 'boxW') machines[idx].labelW = parseInt(val) || 125;
+		if (type === 'boxH') machines[idx].labelH = parseInt(val) || 24;
+		if (type === 'size') machines[idx].fontSize = parseFloat(val) || 11.0;
+		if (type === 'color') machines[idx].colorCode = val;
+		if (type === 'loc') machines[idx].resourceLocation = val;
+		if (type === 'weight') machines[idx].fontWeight = val;
+
+		if (type === 'rectype') machines[idx].recordType = (val === 'NULL' || !val) ? null : val;
+		if (type === 'status') machines[idx].status = (val === 'NULL' || !val) ? null : val;
+		if (type === 'reqdate') machines[idx].requestDate = val;
+
+		calculateBoundaries(machines[idx]); // Recomputes fluid bounds post configuration updates
+		render();
+	}
+
+	function initiateDrag(evt) {
+		evt.preventDefault();
+		evt.stopPropagation(); 
+	
+		activeMacId = evt.target.getAttribute('data-id');
+		activeDragType = evt.target.getAttribute('data-role');
+		activeElement = machines.find(m => m.id === activeMacId);
+
+		window.lastMousePos = { x: evt.clientX, y: evt.clientY }; // Caches viewport drag cursor anchors
+
+		document.addEventListener('mousemove', executeDrag);
+		document.addEventListener('mouseup', terminateDrag);
+	}
+
+	function executeDrag(evt) {
+		if (!activeElement) return;
+
+		const currentImgW = imgW || BG_IMG_WIDTH;
+		const currentImgH = imgH || BG_IMG_HEIGHT;
+
+		if (!window.lastMousePos) return;
+		// Scales drag metrics inverse to current zoom levels to preserve raw mouse tracing speed
+		const deltaX = (evt.clientX - window.lastMousePos.x) / scale;
+		const deltaY = (evt.clientY - window.lastMousePos.y) / scale;
+
+		window.lastMousePos = { x: evt.clientX, y: evt.clientY };
+
+		if (activeDragType === 'label') {
+			// Shifts the global bounding wrapper framework directly
+			const shiftPctX = (deltaX / currentImgW) * 100;
+			const shiftPctY = (deltaY / currentImgH) * 100;
+
+			activeElement.leftPct = parseFloat((activeElement.leftPct + shiftPctX).toFixed(2));
+			activeElement.topPct = parseFloat((activeElement.topPct + shiftPctY).toFixed(2));
+		} else if (activeDragType === 'arrow-start') {
+			// Mutates localized inner vector positions
+			activeElement.startX = Math.round(activeElement.startX + deltaX);
+			activeElement.startY = Math.round(activeElement.startY + deltaY);
+			calculateBoundaries(activeElement);
+		} else if (activeDragType === 'arrow-tip') {
+			activeElement.tipX = Math.round(activeElement.tipX + deltaX);
+			activeElement.tipY = Math.round(activeElement.tipY + deltaY);
+			calculateBoundaries(activeElement);
+		}
+
+		render();
+	}
+
+	function terminateDrag() { 
+		activeElement = null; 
+		document.removeEventListener('mousemove', executeDrag); 
+		document.removeEventListener('mouseup', terminateDrag); 
+	}
+
+	function getSVGCoordinates(evt) {
+		// Utility mapping raw client screen values directly down into standard CTM coordinates
+		const point = svgOverlay.createSVGPoint();
+		point.x = evt.clientX; point.y = evt.clientY;
+		return point.matrixTransform(svgOverlay.getScreenCTM().inverse());
+	}
+
+	window.deleteMachine = function(idx) { 
+		if (confirm("Are you sure you want to remove this resource from the workspace?")) {
+			machines.splice(idx, 1); 
+			render(); 
+		}
+	}
+
+	// Clipboard Copy Event Listeners
+	document.getElementById('btn-copy-sql').addEventListener('click', function() {
+		navigator.clipboard.writeText(document.getElementById('output-sql').innerText)
+			.then(() => alert('📋 SQL script copied to clipboard successfully!'));
+	});
+
+	document.getElementById('btn-copy-mock').addEventListener('click', function() {
+		navigator.clipboard.writeText(document.getElementById('output-mock').innerText)
+			.then(() => alert('📦 Mock data objects copied to clipboard successfully!'));
+	});
+</script>

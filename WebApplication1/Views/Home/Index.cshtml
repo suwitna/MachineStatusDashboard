@@ -1,0 +1,682 @@
+﻿@* Responsive Factory Layout Dashboard with Canvas Viewport & Breakdown Ticket Overlays (Views/Factory/Dashboard.cshtml) *@
+@model WebApplication1.Models.MachineLayout[]
+
+@{
+	ViewData["Title"] = "📊 Resource Layout Dashboard";
+	var availablePlants = Model
+		.Where(m => !string.IsNullOrEmpty(m.Plant))
+		.Select(m => m.Plant) 
+		.Distinct()
+		.OrderBy(a => a)
+		.ToList();
+
+	string firstPlantName = availablePlants.Count > 0 ? availablePlants[0] : "F1";
+	string initialFactoryBg = Url.Content($"~/images/factory_floor_{firstPlantName}.png");
+
+	// =================================================================
+	// 🎯 Centralized blackground image size
+	// =================================================================
+	int bgImgWidth = 1889;
+	int bgImgHeight = 689;
+}
+
+<style>
+	:root {
+		--bp-width: @(bgImgWidth)px;
+		--bp-height: @(bgImgHeight)px;
+	}
+</style>
+
+<div class="row g-2 mb-2 px-2" style="position: relative; z-index: 30;">
+	<div class="col-md-4">
+		<div class="widget-card bg-running-card d-flex align-items-center">
+			<div class="widget-icon-box text-success"><i class="fa-solid fa-circle-check"></i></div>
+			<div class="widget-number" id="sum-running">0</div>
+			<div class="widget-label">Running</div>
+		</div>
+	</div>
+	<div class="col-md-4">
+		<div class="widget-card bg-stop-card d-flex align-items-center">
+			<div class="widget-icon-box text-warning"><i class="fa-solid fa-clock"></i></div>
+			<div class="widget-number" id="sum-stop">0</div>
+			<div class="widget-label">Stop</div>
+		</div>
+	</div>
+	<div class="col-md-4">
+		<div class="widget-card bg-disconnect-card d-flex align-items-center">
+			<div class="widget-icon-box text-info"><i class="fa-solid fa-charging-station"></i></div>
+			<div class="widget-number" id="sum-disconnect">0</div>
+			<div class="widget-label">Disconnect</div>
+		</div>
+	</div>
+</div>
+
+<div class="fullscreen-card-wrapper pb-2 mx-0 w-100" style="max-width: 100% !important;">
+	<div class="card bg-dark border-secondary h-100 w-100 d-flex flex-column m-0 rounded-0" style="overflow: hidden;">
+		
+		<div class="d-flex justify-content-between align-items-center p-2 border-bottom border-secondary-subtle bg-dark-subtle" style="z-index: 25;">
+			<div class="d-flex align-items-center bg-dark p-2 rounded">
+				<h5 class="text-white m-0 fw-bold" style="margin-right: 20px; white-space: nowrap;">
+					🏭 Factory floor :
+				</h5>
+
+				<select class="form-select text-white fw-bold shadow-none" id="ddl-plant" 
+					style="width: auto; 
+						   min-width: 90px;
+						   height: 32px; 
+						   background-color: transparent; 
+						   border: none !important;
+						   outline: none !important;
+						   font-size: 1.25rem;
+						   cursor: pointer;
+						   box-shadow: none !important;
+						   text-align: center;
+						   text-align-last: center;
+						   padding: 0 24px 0 10px;                
+						   color: #ffffff !important;">
+					@if (availablePlants.Count == 0)
+					{
+						<option value="F1" class="bg-dark text-white">F1</option>
+					}
+					else
+					{
+						@for (int i = 0; i < availablePlants.Count; i++)
+						{
+							<option value="@availablePlants[i]" selected="@(i == 0)" class="bg-dark text-white"> @availablePlants[i]</option>
+						}
+					}
+				</select>
+			</div>
+			<small class="text-white-50 d-none d-lg-inline" style="font-size: 11px;">* Scroll wheel to Zoom / Right-click & Drag to Pan board</small>
+			<div class="bg-black p-1 rounded border border-secondary d-flex align-items-center">
+				<button class="btn btn-sm btn-secondary py-0 px-2 text-white" id="btn-zoom-out">➖</button>
+				<span class="text-info mx-2 small fw-bold" id="zoom-scale" style="min-width: 65px; text-align: center; font-size: 11px;">Zoom: 100%</span>
+				<button class="btn btn-sm btn-secondary py-0 px-2 text-white" id="btn-zoom-in">➕</button>
+				<button class="btn btn-sm btn-outline-light py-0 px-2 ms-2" id="btn-zoom-reset" style="font-size:11px;">🔄 Reset View</button>
+			</div>
+		</div>
+
+		<div id="canvas-viewport" class="flex-grow-1">
+			<div id="workspace-container">
+				<div id="editor-container">
+
+					<img id="bg-preview" src="@initialFactoryBg" alt="Factory Floor" />
+
+					<svg id="svg-overlay" viewBox="0 0 @bgImgWidth @bgImgHeight" xmlns="http://www.w3.org/2000/svg">
+						<path d="M 50,300 L 950,300 M 320,100 L 320,550 M 950,100 L 950,550" stroke="#24a148" stroke-width="8" stroke-linecap="round" opacity="0.4" fill="none" />
+					</svg>
+
+					<div id="dynamic-labels-layer" style="position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;">
+						@foreach (var item in Model)
+						{
+							// Trig Calculus: Compute angular directional vectors for arrow tips pointing to machines
+							double angle = Math.Atan2(item.Y2 - item.Y1, item.X2 - item.X1);
+							double baseLength = 8;
+							double bLeftX = item.X2 - baseLength * Math.Cos(angle - Math.PI / 6);
+							double bLeftY = item.Y2 - baseLength * Math.Sin(angle - Math.PI / 6);
+							double bRightX = item.X2 - baseLength * Math.Cos(angle + Math.PI / 6);
+							double bRightY = item.Y2 - baseLength * Math.Sin(angle + Math.PI / 6);
+
+							string pointsString = $"{item.X2},{item.Y2} {bLeftX:F1},{bLeftY:F1} {bRightX:F1},{bRightY:F1}";
+							string styleString = $"position: absolute; left: {item.LeftPct}%; top: {item.TopPct}%; width: {item.WidthPct}%; height: {item.HeightPct}%; pointer-events: none;";
+
+							string displayStatus = item.Status;
+							string displayRecordType = item.recordType;
+							string hexColor = !string.IsNullOrEmpty(item.ColorCode) ? item.ColorCode : "#D3D3D3";
+
+							<div id="container-@item.MachineId" class="mac-label-group"
+								 data-mac="@item.MachineId"
+								 data-status="@displayStatus"
+								 data-type="@displayRecordType"
+								 data-location="@item.ResourceLocation"
+								 data-area="@item.Area"
+								 data-reqdate="@item.RequestDate"
+								 style="@styleString">
+
+								<svg viewBox="0 0 @item.ViewBoxW @item.ViewBoxH" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="overflow: visible;">
+									<line x1="@item.X1" y1="@item.Y1" x2="@item.X2" y2="@item.Y2" stroke="#FF0000" stroke-width="2.5" stroke-linecap="round" />
+									<polygon points="@pointsString" fill="#FF0000" />
+
+									<rect x="@item.BoxX" y="@item.BoxY" width="@item.BoxW" height="@item.BoxH" fill="@hexColor" stroke="@hexColor" stroke-width="1.2" rx="3" style="pointer-events: auto; cursor: pointer;" />
+
+									<g id="signal-status-group-@item.MachineId" style="pointer-events: none;">
+										<rect class="ignore-hover" 
+											  x="@(item.BoxX + 3)" 
+											  y="@(item.BoxY + (item.BoxH / 2.0) - 4)" 
+											  width="12" 
+											  height="8" 
+											  fill="transparent" 
+											  stroke="#6c757d" 
+											  stroke-width="0.5" 
+											  rx="1.5" 
+											  style="vector-effect: non-scaling-stroke !important; stroke-width: 1px !important; stroke-opacity: 1 !important; fill-opacity: 0 !important;" />
+
+										<circle cx="@(item.BoxX + 6)" cy="@(item.BoxY + (item.BoxH / 2.0))" r="1.5" fill="#DC3545" />
+										<circle cx="@(item.BoxX + 9)" cy="@(item.BoxY + (item.BoxH / 2.0))" r="1.5" fill="#28A745" />
+										<circle cx="@(item.BoxX + 12)" cy="@(item.BoxY + (item.BoxH / 2.0))" r="1.5" fill="#212529" />
+									</g>
+									<text x="@(item.BoxX + 18)" y="@(item.BoxY + (item.BoxH / 2.0) + 4)" fill="#212529" font-family="Segoe UI, Arial" font-size="@(item.FontSize)px" font-weight="@item.FontWeight">@item.MachineId</text>
+								</svg>
+							</div>
+						}
+					</div>
+				</div>
+			</div>
+
+			<div id="custom-html-tooltip" class="card p-3 bg-dark text-white position-absolute shadow border-secondary" 
+				 style="visibility: hidden; 
+						z-index: 99999 !important; 
+						width: 360px; 
+						min-width: 360px; 
+						box-sizing: border-box; 
+						font-size: 16px; 
+						pointer-events: none; 
+						margin: 0; 
+						line-height: 1.6;
+						border-width: 2px !important;">
+				<div id="tt-title" class="fw-bold mb-2" style="font-size: 18px; letter-spacing: 0.5px;">Machine ID</div>
+				<div class="text-white-50 mb-2" id="tt-location" style="font-size: 14px;">Loc: -</div>
+				<hr class="my-2 border-secondary" style="border-width: 1.5px;">
+				<div id="tt-type" style="padding: 2px 0;">Type: -</div>
+				<div id="tt-status" style="padding: 2px 0;">Status: -</div>
+				<div id="tt-date" style="padding: 2px 0;">Request: -</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<link class="href" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+<style>
+	body {
+		background-color: #1a1d24;
+		color: #e2e3e5;
+		overflow: hidden; /* Prevent native window scrollbar overlap */
+	}
+
+	/* Force fluid container viewport full screen-height layout */
+	.fullscreen-card-wrapper {
+		height: calc(100vh - 120px); 
+		width: 100% !important;
+		max-width: 100% !important;
+		padding-left: 0 !important;
+		padding-right: 0 !important;
+	}
+
+	/* Core interactive workspace mouse event capturing box */
+	#canvas-viewport {
+		position: relative;
+		width: 100%;
+		height: 100%;
+		overflow: hidden;
+		background-color: #e2e3e5;
+		border: 1px solid #343a40;
+		cursor: grab;
+	}
+	#canvas-viewport:active {
+		cursor: grabbing;
+	}
+
+	/* ⚙️ ดึงตัวแปรจากโครงสร้างซีเอสเอสวาริเอเบิลมาใช้งาน */
+	#workspace-container {
+		position: absolute;
+		top: 0;
+		left: 0;
+		transform-origin: 0 0;
+		display: block;
+		width: var(--bp-width); 
+		height: var(--bp-height); 
+	}
+
+	#editor-container {
+		position: relative;
+		display: block;
+		min-width: var(--bp-width);
+	}
+
+	#bg-preview {
+		display: block;
+		max-width: none;
+		height: auto;
+		user-select: none;
+		-webkit-user-drag: none;
+		width: var(--bp-width);
+		background-color: #e2e3e5;
+	}
+
+	#svg-overlay {
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		pointer-events: none;
+	}
+
+	/* Break bootstrap container spacing to inject absolute Edge-to-Edge view */
+	main.container, 
+	div.container,
+	.body-content {
+		max-width: 100% !important;
+		width: 100% !important;
+		padding-left: 0 !important;
+		padding-right: 0 !important;
+	}
+
+	/* Stats widget styles & transition behaviors */
+	.widget-card {
+		border-radius: 6px;
+		padding: 8px 15px;
+		color: white;
+		box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+	}
+	.widget-icon-box {
+		width: 32px;
+		height: 32px;
+		background: white;
+		border-radius: 6px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		margin-right: 12px;
+		font-size: 16px;
+	}
+	.widget-number {
+		font-size: 26px;
+		font-weight: 800;
+		font-family: 'Impact', sans-serif;
+		margin-right: 8px;
+		line-height: 1;
+	}
+	.widget-label {
+		font-size: 12px;
+		font-weight: bold;
+		opacity: 0.85;
+	}
+	.bg-running-card { background-color: #28A745; }
+	.bg-stop-card { background-color: #DC3545; }
+	.bg-disconnect-card { background-color: #212529; border: 1px solid #454d55; }
+
+	/* Active node micro-interactions & layer stacking configuration */
+	.mac-label-group { z-index: 10; }
+	.mac-label-group:hover { z-index: 99; }
+	.mac-label-group:hover line {
+		stroke: #FF0000 !important;
+		filter: drop-shadow(0px 0px 0px rgba(255, 0, 0, 0.6));
+	}
+	.mac-label-group:hover polygon {
+		fill: #FF0000 !important;
+		filter: drop-shadow(0px 0px 4px rgba(255, 0, 0, 0.6));
+	}
+	.mac-label-group rect {
+		transition: fill 0.15s ease-in-out, stroke 0.15s ease-in-out, stroke-width 0.15s ease-in-out;
+	}
+	.mac-label-group:hover rect {
+		fill-opacity: 0.95 !important;
+		stroke-width: 2px !important;
+	}	
+	.mac-label-group:hover text {
+		fill: #1a1d24 !important;
+		font-weight: bold !important;
+	}
+</style>
+
+@section Scripts {
+	<script>
+		// Inject Initial DB Model Array into client context
+		var MockMachineLayouts = @Json.Serialize(Model) || [];
+		console.log("Initial Loaded Data:", MockMachineLayouts);
+
+		// Bind server-side blueprint dimensions directly to client context for 100% computational accuracy
+		const BG_IMG_WIDTH = @bgImgWidth;
+		const BG_IMG_HEIGHT = @bgImgHeight;
+
+		// Global Canvas Viewport States
+		let scale = 1.0;
+		let panX = 0, panY = 0;
+		let isPanning = false;
+		let startPanX = 0, startPanY = 0;
+
+		// Centralized DOM Element Caching
+		const viewport = document.getElementById('canvas-viewport');
+		const workspaceContainer = document.getElementById('workspace-container');
+		const zoomScaleLabel = document.getElementById('zoom-scale');
+
+		// Combined Event Listeners & Casing Handler Pipeline
+		document.addEventListener("DOMContentLoaded", function () {
+			const ddlPlant = document.getElementById('ddl-plant');
+			if (!ddlPlant) return;
+
+			ddlPlant.addEventListener('change', function () {
+				const selectedPlant = this.value;
+				console.log("🔄 Local Filter Switching to Plant: ", selectedPlant);
+
+				// 🖼️ Toggle target plant asset background image (Fallback configuration using code references)
+				const bgImg = document.getElementById('bg-preview');
+				if (bgImg) {
+					bgImg.src = `/images/factory_floor_${selectedPlant}.png`; 
+				}
+
+				// Filter dataset dynamically from cached model array supporting C# PascalCase/camelCase normalization
+				const filteredLayouts = MockMachineLayouts.filter(item => {
+					const currentPlant = item.Plant || item.plant || item.Area || item.area; 
+					if (!currentPlant) return false;
+					return currentPlant.toString().trim().toLowerCase() === selectedPlant.toString().trim().toLowerCase();
+				});
+
+				// Dispatch filtered collections back to render execution loop
+				renderResourcesToCanvas(filteredLayouts);
+
+				// Auto center layout bounds matching newly targeted floor blueprint dimensions
+				if (typeof autoCenterLayout === "function") {
+					setTimeout(autoCenterLayout, 50);
+				}
+			});
+		});
+
+		/**
+		 * 🎨 Clears layout workspace and dynamically paints newly filtered Machine/Resource overlays onto the interactive canvas grid
+		 */
+		function renderResourcesToCanvas(layouts) {
+			const labelLayer = document.getElementById('dynamic-labels-layer');
+			if (!labelLayer) return;
+
+			// 1. Wipe existing element tree nodes associated with the prior layout
+			labelLayer.innerHTML = '';
+
+			// 2. Iterate collection and construct HTML layouts map layers matching dynamic coordinate metrics
+			layouts.forEach(item => {
+				// Compute angular metrics for indicator vector tip alignments matching backend baseline rules
+				const angle = Math.atan2(item.y2 - item.y1, item.x2 - item.x1);
+				const baseLength = 8;
+				const bLeftX = item.x2 - baseLength * Math.cos(angle - Math.PI / 6);
+				const bLeftY = item.y2 - baseLength * Math.sin(angle - Math.PI / 6);
+				const bRightX = item.x2 - baseLength * Math.cos(angle + Math.PI / 6);
+				const bRightY = item.y2 - baseLength * Math.sin(angle + Math.PI / 6);
+
+				const pointsString = `${item.x2},${item.y2} ${bLeftX.toFixed(1)},${bLeftY.toFixed(1)} ${bRightX.toFixed(1)},${bRightY.toFixed(1)}`;
+				const styleString = `position: absolute; left: ${item.leftPct}%; top: ${item.topPct}%; width: ${item.widthPct}%; height: ${item.heightPct}%; pointer-events: none;`;
+        
+				const hexColor = item.colorCode || "#D3D3D3";
+
+				// DOM Structure preserving legacy application UI styling standard
+				const labelHTML = `
+					<div id="container-${item.machineId}" class="mac-label-group"
+						 data-mac="${item.machineId}"
+						 data-status="${item.status}"
+						 data-type="${item.recordType}"
+						 data-location="${item.resourceLocation}"
+						 data-area="${item.area}"
+						 data-reqdate="${item.requestDate}"
+						 style="${styleString}">
+
+						<svg viewBox="0 0 ${item.viewBoxW} ${item.viewBoxH} " width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="overflow: visible;">
+							<line x1="${item.x1}" y1="${item.y1}" x2="${item.x2}" y2="${item.y2}" stroke="#FF0000" stroke-width="2.5" stroke-linecap="round" />
+							<polygon points="${pointsString}" fill="#FF0000" />
+							<rect x="${item.boxX}" y="${item.boxY}" width="${item.boxW}" height="${item.boxH}" fill="${hexColor}" stroke="${hexColor}" stroke-width="1.2" rx="3" style="pointer-events: auto; cursor: pointer;" />
+
+							<g id="signal-status-group-${item.machineId}" style="pointer-events: none;">
+								<rect class="ignore-hover" 
+									  x="${item.boxX + 3}" 
+									  y="${item.boxY + (item.boxH / 2.0) - 4}" 
+									  width="12" 
+									  height="8" 
+									  fill="transparent" 
+									  stroke="#6c757d" 
+									  stroke-width="0.5" 
+									  rx="1.5" 
+									  style="vector-effect: non-scaling-stroke !important; stroke-width: 1px !important; stroke-opacity: 1 !important; fill-opacity: 0 !important;" />
+
+								<circle cx="${item.boxX + 6}" cy="${item.boxY + (item.boxH / 2.0)}" r="1" fill="#DC3545" />
+								<circle cx="${item.boxX + 9}" cy="${item.boxY + (item.boxH / 2.0)}" r="1" fill="#28A745" />
+								<circle cx="${item.boxX + 12}" cy="${item.boxY + (item.boxH / 2.0)}" r="1" fill="#212529" />
+							</g>
+							<text x="${item.boxX + 18}" y="${item.boxY + (item.boxH / 2.0) + 4}" fill="#212529" font-family="Segoe UI, Arial" font-size="${item.fontSize}px" font-weight="${item.fontWeight}">${item.machineId}</text>
+						</svg>
+					</div>`;
+
+				labelLayer.insertAdjacentHTML('beforeend', labelHTML);
+			});
+
+			// 3. Post-render execution: Re-initialize element interactive overlays and refresh KPI indicators
+			initTooltipEvents();
+			recountDashboardSummary();
+		}
+		
+		/**
+		 * 📐 Computes optimal aspect ratio scaling to autofit and center the floor plan layout 
+		 * ⚙️ ปรับมาดึงมิติผ่านทางตัวแปรสากล BG_IMG_WIDTH และ BG_IMG_HEIGHT แทน Hardcode
+		 */
+		function autoCenterLayout() {
+			if (!viewport) return;
+
+			const vW = viewport.clientWidth;
+			const vH = viewport.clientHeight;
+	
+			const imgW = BG_IMG_WIDTH;
+			const imgH = BG_IMG_HEIGHT;
+
+			const screenRatio = vW / vH;
+			const imageRatio = imgW / imgH;
+
+			if (screenRatio > imageRatio) {
+				scale = vH / imgH; // Ultra-wide monitor -> Scale bound to full height
+			} else {
+				scale = vW / imgW; // Narrow viewport -> Scale bound to full width
+			}
+
+			if (scale < 0.2) scale = 0.2; // Floor boundary safety clamp
+
+			// [Offset Balancing Formula] Center workspace bounding block into viewport screen space
+			panX = (vW - (imgW * scale)) / 2;
+			panY = (vH - (imgH * scale)) / 2;
+
+			updateTransform();
+		}
+
+		// EVENT: Mouse wheel scroll dynamic focal zoom engine
+		viewport.addEventListener('wheel', function(e) {
+			e.preventDefault();
+			const zoomFactor = 1.1;
+			const rect = viewport.getBoundingClientRect();
+			const mouseX = e.clientX - rect.left;
+			const mouseY = e.clientY - rect.top;
+			const svgMouseX = (mouseX - panX) / scale;
+			const svgMouseY = (mouseY - panY) / scale;
+
+			if (e.deltaY < 0) scale = Math.min(scale * zoomFactor, 4.0); // Zoom Ceiling: 400%
+			else scale = Math.max(scale / zoomFactor, 0.4);            // Zoom Floor: 40%
+
+			panX = mouseX - svgMouseX * scale;
+			panY = mouseY - svgMouseY * scale;
+			updateTransform();
+		});
+
+		// EVENT: Right-click click-and-drag pan execution handlers
+		viewport.addEventListener('mousedown', function(e) {
+			if (e.button === 2 || e.target === viewport || e.target === document.getElementById('bg-preview')) {
+				isPanning = true;
+				startPanX = e.clientX - panX;
+				startPanY = e.clientY - panY;
+			}
+		});
+
+		document.addEventListener('mousemove', function(e) {
+			if (!isPanning) return;
+			panX = e.clientX - startPanX;
+			panY = e.clientY - startPanY;
+			updateTransform();
+		});
+
+		document.addEventListener('mouseup', () => isPanning = false);
+		viewport.addEventListener('contextmenu', e => e.preventDefault()); // Suppress native browser contextual context menu popup
+
+		// Top toolbar navigation action hookups
+		document.getElementById('btn-zoom-in').addEventListener('click', () => { scale = Math.min(scale * 1.2, 4.0); updateTransform(); });
+		document.getElementById('btn-zoom-out').addEventListener('click', () => { scale = Math.max(scale / 1.2, 0.4); updateTransform(); });
+		document.getElementById('btn-zoom-reset').addEventListener('click', (e) => { e.preventDefault(); autoCenterLayout(); });
+
+		// Transform Engine: Flushes computed coordinates back down into CSS transform directives
+		function updateTransform() {
+			workspaceContainer.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+			zoomScaleLabel.innerText = `Zoom: ${Math.round(scale * 100)}%`;
+		}
+
+		// ==========================================
+		// SUB-SYSTEM: CUSTOM HTML TOOLTIP CONTROLLER
+		// ==========================================
+		const htmlTooltip = document.getElementById("custom-html-tooltip");
+		const ttTitle = document.getElementById("tt-title");
+		const ttLocation = document.getElementById("tt-location");
+		const ttType = document.getElementById("tt-type");
+		const ttStatus = document.getElementById("tt-status");
+		const ttDate = document.getElementById("tt-date");
+		
+		function initTooltipEvents() {
+			document.querySelectorAll(".mac-label-group rect").forEach(rectEl => {
+				const groupContainer = rectEl.closest(".mac-label-group");
+
+				rectEl.addEventListener("mouseenter", (e) => {
+					const macId = groupContainer.getAttribute("data-mac");
+					const status = groupContainer.getAttribute("data-status");
+					const type = groupContainer.getAttribute("data-type");
+					const loc = groupContainer.getAttribute("data-location");
+					const area = groupContainer.getAttribute("data-area");
+					const reqDate = groupContainer.getAttribute("data-reqdate");
+
+					// Query signal dot elements to fetch context matching status trace line color codes
+					const dotEl = document.getElementById(`dot-${macId}`);
+					const machineColor = dotEl ? dotEl.style.fill : "#D3D3D3";
+
+					// Bind dynamic layout dataset directly into DOM Card structures
+					ttTitle.textContent = macId;
+					ttTitle.style.setProperty('color', machineColor, 'important');
+					ttLocation.textContent = `Loc: ${loc} (${area})`;
+					ttType.textContent = "Type: " + type;
+					ttStatus.textContent = "Status: " + status;
+					ttDate.textContent = "Request: " + reqDate;
+
+					// Flush residual color definitions before pipeline rerender cycles
+					htmlTooltip.className = "card p-3 bg-dark text-white position-absolute shadow";
+					htmlTooltip.style.setProperty('border', `1.5px solid ${machineColor}`, 'important');
+
+					// Append status card border highlight mutations matching state metrics
+					if (status === "job completed" || status === "Job Completed") {
+						htmlTooltip.classList.add("border-success");
+					} else if (status === "Normal" || status === "NULL" || status === "null" || status === "") {
+						htmlTooltip.classList.add("border-secondary");
+					} else {
+						htmlTooltip.classList.add("border-warning");
+					}
+
+					moveTooltipToMouse(e);
+					htmlTooltip.style.visibility = "visible";
+					htmlTooltip.style.opacity = "1";
+				});
+
+				rectEl.addEventListener("mousemove", (e) => {
+					moveTooltipToMouse(e);
+				});
+
+				rectEl.addEventListener("mouseleave", () => {
+					htmlTooltip.style.visibility = "hidden";
+					htmlTooltip.style.opacity = "0";
+				});
+			});
+
+			/**
+			 * 📐 Calculates and locks HTML overlay tooltip anchor placement metrics tracking screen cursors.
+			 * Operates outside vector scale matrices to avoid canvas skew distortion.
+			 */
+			function moveTooltipToMouse(e) {
+				if (htmlTooltip.style.visibility === "hidden") return;
+
+				const viewportBounds = viewport.getBoundingClientRect();
+				const mouseXInViewport = e.clientX - viewportBounds.left;
+				const mouseYInViewport = e.clientY - viewportBounds.top;
+
+				// Static scale measurements utilized within mathematical collision check workflows
+				const tooltipWidth = 360;  
+				const tooltipHeight = 165; 
+
+				// Shift coordinates slightly down-right to avoid cursor obstruction
+				let tooltipLeft = mouseXInViewport + 12;
+				let tooltipTop = mouseYInViewport + 15; 
+
+				// 🚧 BOUNDS DETECTOR: Auto-flip tooltip coordinates inwards when nearing screen-edge boundaries
+				if (tooltipLeft + tooltipWidth > viewportBounds.width) {
+					tooltipLeft = mouseXInViewport - tooltipWidth - 10; // Flip to Left
+				}
+				if (tooltipLeft < 5) tooltipLeft = 5;
+
+				if (tooltipTop + tooltipHeight > viewportBounds.height) {
+					tooltipTop = mouseYInViewport - tooltipHeight - 5;  // Flip to Top
+				}
+				if (tooltipTop < 5) tooltipTop = 5;
+
+				// Flush absolute metrics into target inline elements
+				htmlTooltip.style.left = `${tooltipLeft}px`;
+				htmlTooltip.style.top = `${tooltipTop}px`;
+			}
+		}
+		
+		/**
+		 * 📊 Aggregate statistics loops processing current active workspace node elements
+		 */
+		function recountDashboardSummary() {
+			let running = 0, stop = 0, disconnect = 0;
+
+			document.querySelectorAll('.mac-label-group').forEach(el => {
+				const rawStatus = el.getAttribute('data-status');
+				const status = (rawStatus || "").toString().trim().toLowerCase();
+
+				if (status === "job completed") {
+					running++;
+				} else if (status === "normal" || status === "null" || status === "" || status === "none") {
+					disconnect++;
+				} else {
+					stop++;
+				}
+			});
+
+			const runningEl = document.getElementById('sum-running');
+			const stopEl = document.getElementById('sum-stop');
+			const disconnectEl = document.getElementById('sum-disconnect');
+
+			if (runningEl) runningEl.innerText = running;
+			if (stopEl) stopEl.innerText = stop;
+			if (disconnectEl) disconnectEl.innerText = disconnect;
+		}
+
+		// INITIALIZATION: Fire spatial normalization and summary parsing cycles upon load cycles
+		autoCenterLayout();
+
+		(function () {
+			const ddlPlant = document.getElementById('ddl-plant');
+			if (ddlPlant && ddlPlant.value) {
+				const firstSelectedPlant = ddlPlant.value;
+				console.log("🚀 Initial Page Load - Auto Filtering to:", firstSelectedPlant);
+
+				// Perform dataset filter targeting the default initialized building value
+				const initialFiltered = MockMachineLayouts.filter(item => {
+					const currentPlant = item.Plant || item.plant || item.Area || item.area;
+					if (!currentPlant) return false;
+					return currentPlant.toString().trim().toLowerCase() === firstSelectedPlant.toString().trim().toLowerCase();
+				});
+
+				// Dispatch layout data to canvas pipeline (Attaches tooltips & updates top statistics widgets automatically)
+				renderResourcesToCanvas(initialFiltered);
+			} else {
+				// Fallback safety configuration if selection controls cannot be matched
+				recountDashboardSummary();
+				initTooltipEvents();
+			}
+		})();
+
+		recountDashboardSummary();
+		initTooltipEvents();
+
+		// Real-time canvas alignment adaptation matching dynamic viewport scaling adjustments
+		window.addEventListener('resize', autoCenterLayout);
+	</script>
+}
