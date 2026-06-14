@@ -34,4 +34,7 @@ CNC-FAN-4XN-006
 
 
 ---
+## Database
+<img width="362" height="551" alt="image" src="https://github.com/user-attachments/assets/a33cd652-4030-4390-9301-7928450177b8" />
+<img width="1862" height="780" alt="image" src="https://github.com/user-attachments/assets/48f6a42f-d0be-4624-ad69-0afa9d040698" />
 
