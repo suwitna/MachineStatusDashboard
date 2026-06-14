@@ -26,11 +26,9 @@ CNC-HER-5XN-020
 CNC-MAZ-3XN-017
 CNC-FAN-4XN-006
 ```
-4. เลือก Plant และกด Load Resource เพื่อ เพิ่ม/แก้ไข ข้อมูลตำแหน่งของเครื่องจักร
-
-4.1. เพิ่มหรือแก้ไขข้อมูลตำแหน่งของเครื่องจักร
-
-4.2 ส่วนของ SQL Update command ที่ถูกสร้างขึ้นเพื่อนำไปอัพเดทข้อมูลใน Database
+4. เลือก Plant และกด Load Resource เพื่อ เพิ่ม/แก้ไข ข้อมูลตำแหน่งของเครื่องจักร  
+    4.1 เพิ่มหรือแก้ไขข้อมูลตำแหน่งของเครื่องจักร  
+    4.2 ส่วนของ SQL Update command ที่ถูกสร้างขึ้นเพื่อนำไปอัพเดทข้อมูลใน Database  
 
 <img width="1920" height="955" alt="image" src="https://github.com/user-attachments/assets/766c8c69-99ed-4926-aa90-758425ccac80" />
 
