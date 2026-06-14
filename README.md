@@ -213,3 +213,31 @@ GO
 
 ### STEP 5: แสดงผลหน้า Dashboard 
 <img width="1920" height="955" alt="image" src="https://github.com/user-attachments/assets/2e272025-8161-41d1-a4a4-da3039b32ca5" />
+
+---
+### ตัวอย่าง SQL Update command
+```sql
+UPDATE MachineLayouts SET LeftPct=6.18, TopPct=10.1, WidthPct=7.85, HeightPct=13.3, ViewBoxW=155, ViewBoxH=106, X1=72, Y1=50, X2=92, Y2=91, BoxX=15, BoxY=15, BoxW=125, BoxH=24, FontSize=11.5, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-FAN-4XN-014';
+UPDATE MachineLayouts SET LeftPct=-0.63, TopPct=-1.79, WidthPct=8.36, HeightPct=13.93, ViewBoxW=165, ViewBoxH=111, X1=377, Y1=128, X2=360, Y2=191, BoxX=322, BoxY=108, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-HER-5XN-021';
+UPDATE MachineLayouts SET LeftPct=0.13, TopPct=-1.89, WidthPct=8.36, HeightPct=14.3, ViewBoxW=165, ViewBoxH=114, X1=509, Y1=127, X2=462, Y2=190, BoxX=454, BoxY=107, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-HER-5XN-022';
+UPDATE MachineLayouts SET LeftPct=-4.91, TopPct=-4.45, WidthPct=8.36, HeightPct=13.93, ViewBoxW=165, ViewBoxH=111, X1=320, Y1=265, X2=346, Y2=314, BoxX=265, BoxY=245, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-HER-5XN-023';
+UPDATE MachineLayouts SET LeftPct=-0.79, TopPct=-3.44, WidthPct=8.36, HeightPct=13.55, ViewBoxW=165, ViewBoxH=108, X1=409, Y1=262, X2=475, Y2=311, BoxX=354, BoxY=242, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-HER-5XN-020';
+UPDATE MachineLayouts SET LeftPct=16.45, TopPct=50.15, WidthPct=8.21, HeightPct=13.35, ViewBoxW=155, ViewBoxH=92, X1=70, Y1=35, X2=94, Y2=77, BoxX=15, BoxY=15, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-MAZ-3XN-017';
+UPDATE MachineLayouts SET LeftPct=8.01, TopPct=50.15, WidthPct=8.21, HeightPct=12.92, ViewBoxW=155, ViewBoxH=89, X1=70, Y1=35, X2=71, Y2=74, BoxX=15, BoxY=15, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-FAN-4XN-006';
+UPDATE MachineLayouts SET LeftPct=0.71, TopPct=-5.94, WidthPct=8.36, HeightPct=10.92, ViewBoxW=165, ViewBoxH=87, X1=683, Y1=159, X2=656, Y2=219, BoxX=621, BoxY=137, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-MAZ-2XN-004';
+UPDATE MachineLayouts SET LeftPct=18.57, TopPct=2.42, WidthPct=8.46, HeightPct=13.93, ViewBoxW=167, ViewBoxH=111, X1=436, Y1=91, X2=369, Y2=152, BoxX=381, BoxY=71, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-FAN-4XN-004';
+UPDATE MachineLayouts SET LeftPct=12.8, TopPct=10.22, WidthPct=7.85, HeightPct=9.66, ViewBoxW=155, ViewBoxH=77, X1=322, Y1=143, X2=324, Y2=168, BoxX=259, BoxY=121, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-MAZ-2XN-005';
+UPDATE MachineLayouts SET LeftPct=22.72, TopPct=2.2, WidthPct=7.85, HeightPct=12.42, ViewBoxW=155, ViewBoxH=99, X1=494, Y1=91, X2=441, Y2=140, BoxX=439, BoxY=71, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-FAN-4XN-003';
+UPDATE MachineLayouts SET LeftPct=21.55, TopPct=8.42, WidthPct=7.85, HeightPct=8.91, ViewBoxW=155, ViewBoxH=71, X1=474, Y1=133, X2=474, Y2=151, BoxX=412, BoxY=110, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-MAZ-2XN-002';
+UPDATE MachineLayouts SET LeftPct=31.13, TopPct=22.7, WidthPct=10.85, HeightPct=7.84, ViewBoxW=205, ViewBoxH=54, X1=139, Y1=28, X2=190, Y2=37, BoxX=15, BoxY=15, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-FAN-4XN-005';
+UPDATE MachineLayouts SET LeftPct=23.23, TopPct=37.74, WidthPct=8.21, HeightPct=11.9, ViewBoxW=155, ViewBoxH=82, X1=83, Y1=39, X2=85, Y2=67, BoxX=15, BoxY=15, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-MAZ-2XN-003';
+UPDATE MachineLayouts SET LeftPct=28.54, TopPct=28.65, WidthPct=8.21, HeightPct=10.74, ViewBoxW=155, ViewBoxH=74, X1=70, Y1=35, X2=78, Y2=59, BoxX=15, BoxY=15, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-FAN-4XN-001';
+UPDATE MachineLayouts SET LeftPct=36.58, TopPct=28.92, WidthPct=8.21, HeightPct=10.01, ViewBoxW=155, ViewBoxH=69, X1=70, Y1=35, X2=32, Y2=54, BoxX=15, BoxY=15, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-MAZ-2XN-007';
+UPDATE MachineLayouts SET LeftPct=39.87, TopPct=37.75, WidthPct=8.21, HeightPct=13.5, ViewBoxW=155, ViewBoxH=93, X1=72, Y1=36, X2=68, Y2=78, BoxX=15, BoxY=15, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-FAN-4XN-002';
+UPDATE MachineLayouts SET LeftPct=30.91, TopPct=37.78, WidthPct=8.21, HeightPct=11.61, ViewBoxW=155, ViewBoxH=80, X1=94, Y1=38, X2=82, Y2=65, BoxX=15, BoxY=15, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-MAZ-2XN-006';
+UPDATE MachineLayouts SET LeftPct=74.21, TopPct=10.7, WidthPct=8.21, HeightPct=13.06, ViewBoxW=155, ViewBoxH=90, X1=70, Y1=35, X2=70, Y2=75, BoxX=15, BoxY=15, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-TOP-1XN-006';
+UPDATE MachineLayouts SET LeftPct=4.51, TopPct=79.13, WidthPct=8.21, HeightPct=13.06, ViewBoxW=155, ViewBoxH=90, X1=70, Y1=35, X2=70, Y2=75, BoxX=15, BoxY=15, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-MAK-5XG-007';
+UPDATE MachineLayouts SET LeftPct=14.52, TopPct=66.47, WidthPct=8.21, HeightPct=13.06, ViewBoxW=155, ViewBoxH=90, X1=70, Y1=35, X2=70, Y2=75, BoxX=15, BoxY=15, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-MAZ-3XN-035';
+UPDATE MachineLayouts SET LeftPct=4.33, TopPct=66.63, WidthPct=8.21, HeightPct=13.06, ViewBoxW=155, ViewBoxH=90, X1=70, Y1=35, X2=70, Y2=75, BoxX=15, BoxY=15, BoxW=125, BoxH=24, FontSize=11.0, FontWeight='normal', IsPlotted='Y' WHERE MachineId='CNC-TOP-1XN-007';
+
+```
