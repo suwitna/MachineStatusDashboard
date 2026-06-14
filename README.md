@@ -1,4 +1,4 @@
-# Machine Status Dashboard
+<img width="1920" height="960" alt="image" src="https://github.com/user-attachments/assets/1da26ba5-99bc-4289-a526-8d44c2e2b2c2" /># Machine Status Dashboard
 
 <img width="1536" height="1024" alt="ChatGPT Image 14 มิ ย  2569 14_28_07" src="https://github.com/user-attachments/assets/fb4848b3-1f72-480c-a424-5a53c20fadb1" />
 
@@ -74,7 +74,8 @@ CNC-FAN-4XN-006
 
 ## Dashboard
 แสดงข้อมูลตำแหน่งของเครื่องจักร สามารถเลือก Plant ที่ต้องการแสดงข้อมูลได้
-<img width="1919" height="954" alt="image" src="https://github.com/user-attachments/assets/b37c6177-fb8a-4b88-949c-460307fe487a" />
+<img width="1920" height="960" alt="image" src="https://github.com/user-attachments/assets/1f051e2d-0c4a-4bf0-b9d2-d10b40b13fd4" />
+
 
 ---
 ## 🚀 ขั้นตอนการติดตั้งและทดสอบการใช้งาน
